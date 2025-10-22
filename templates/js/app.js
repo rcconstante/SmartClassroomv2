@@ -239,20 +239,560 @@ function loadStudents() {
 function loadAnalytics() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <div>
-                    <h3 class="card-title">Advanced Analytics</h3>
-                    <p class="card-subtitle">Coming soon...</p>
+        <!-- Analytics Controls -->
+        <div style="display: flex; gap: 16px; margin-bottom: 24px; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary);">Date Range</label>
+                <select id="analyticsDateRange" class="form-select" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 14px;">
+                    <option value="7">Last 7 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="30" selected>Last 30 Days</option>
+                    <option value="90">Last 90 Days</option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary);">Export Data</label>
+                <button id="exportAnalyticsBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">
+                    <i data-lucide="download"></i>
+                    Export as CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Analytics Stats Grid -->
+        <div class="stats-grid" style="margin-bottom: 24px;">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Average Engagement</span>
+                    <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                        <i data-lucide="activity"></i>
+                    </div>
+                </div>
+                <div class="stat-value" id="analyticsAvgEngagement">76.3<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
+                <div class="stat-change positive">
+                    <i data-lucide="trending-up"></i>
+                    <span>+8.2% from previous period</span>
                 </div>
             </div>
-            <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-                <i data-lucide="bar-chart-3" style="width: 64px; height: 64px; margin-bottom: 16px;"></i>
-                <p>Advanced analytics feature will be available soon.</p>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Average Attendance</span>
+                    <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                        <i data-lucide="users"></i>
+                    </div>
+                </div>
+                <div class="stat-value" id="analyticsAvgAttendance">86.5<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
+                <div class="stat-change positive">
+                    <i data-lucide="trending-up"></i>
+                    <span>+2.3% from previous period</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Total Sessions</span>
+                    <div class="stat-icon" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;">
+                        <i data-lucide="calendar"></i>
+                    </div>
+                </div>
+                <div class="stat-value" id="analyticsTotalSessions">24</div>
+                <div class="stat-change neutral">
+                    <i data-lucide="minus"></i>
+                    <span>Same as previous period</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Peak Engagement Time</span>
+                    <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                        <i data-lucide="clock"></i>
+                    </div>
+                </div>
+                <div class="stat-value" style="font-size: 28px;" id="analyticsPeakTime">10:00 AM</div>
+                <div class="stat-change positive">
+                    <i data-lucide="star"></i>
+                    <span>Most productive hour</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Charts Grid -->
+        <div class="dashboard-grid">
+            <!-- Engagement Trend Chart -->
+            <div class="card card-full">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Engagement Trends</h3>
+                        <p class="card-subtitle">Daily engagement levels over selected period</p>
+                    </div>
+                </div>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="analyticsEngagementChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Attendance Trend Chart -->
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Attendance Trends</h3>
+                        <p class="card-subtitle">Daily attendance over time</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="analyticsAttendanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Emotion Distribution Chart -->
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Emotion Distribution</h3>
+                        <p class="card-subtitle">Average emotion breakdown</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="analyticsEmotionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Hourly Engagement Pattern -->
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Hourly Engagement Pattern</h3>
+                        <p class="card-subtitle">Average engagement by hour of day</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="analyticsHourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Weekly Performance -->
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Weekly Performance</h3>
+                        <p class="card-subtitle">Engagement by day of week</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="analyticsWeeklyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Detailed Data Table -->
+            <div class="card card-full">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Detailed Analytics Data</h3>
+                        <p class="card-subtitle">Session-by-session breakdown</p>
+                    </div>
+                    <button id="exportTableBtn" class="btn btn-secondary">
+                        <i data-lucide="file-text"></i>
+                        Export Table
+                    </button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="analyticsTable" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--bg-primary); border-bottom: 2px solid var(--border-color);">
+                                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Date</th>
+                                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Session</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Students</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Attendance</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Engagement</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Attention</th>
+                                <th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analyticsTableBody">
+                            <!-- Data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     `;
+    
     lucide.createIcons();
+    
+    // Initialize analytics
+    initAnalytics();
+}
+
+// Initialize Analytics
+function initAnalytics() {
+    // Generate analytics data
+    const analyticsData = generateAnalyticsData(30);
+    
+    // Initialize all charts
+    initAnalyticsEngagementChart(analyticsData);
+    initAnalyticsAttendanceChart(analyticsData);
+    initAnalyticsEmotionChart();
+    initAnalyticsHourlyChart();
+    initAnalyticsWeeklyChart();
+    
+    // Populate table
+    populateAnalyticsTable(analyticsData);
+    
+    // Add event listeners
+    const dateRangeSelect = document.getElementById('analyticsDateRange');
+    if (dateRangeSelect) {
+        dateRangeSelect.addEventListener('change', (e) => {
+            const days = parseInt(e.target.value);
+            const newData = generateAnalyticsData(days);
+            updateAnalyticsCharts(newData);
+            populateAnalyticsTable(newData);
+        });
+    }
+    
+    const exportBtn = document.getElementById('exportAnalyticsBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => exportAnalyticsCSV(analyticsData));
+    }
+    
+    const exportTableBtn = document.getElementById('exportTableBtn');
+    if (exportTableBtn) {
+        exportTableBtn.addEventListener('click', () => exportAnalyticsCSV(analyticsData));
+    }
+}
+
+// Generate Analytics Data
+function generateAnalyticsData(days) {
+    const data = [];
+    const today = new Date();
+    
+    for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        
+        // Skip weekends for more realistic data
+        if (date.getDay() === 0 || date.getDay() === 6) {
+            continue;
+        }
+        
+        const sessionTime = date.getHours() >= 12 ? 'PM' : 'AM';
+        const baseEngagement = 70 + Math.random() * 20;
+        const baseAttendance = 25 + Math.floor(Math.random() * 7);
+        
+        data.push({
+            date: date.toISOString().split('T')[0],
+            dateObj: date,
+            session: `${date.getHours() >= 12 ? date.getHours() - 12 : date.getHours()}:00 ${sessionTime} - CS101`,
+            students: baseAttendance,
+            attendance: Math.round((baseAttendance / 32) * 100),
+            engagement: Math.round(baseEngagement),
+            attention: Math.round(baseEngagement + (Math.random() * 10 - 5)),
+            status: baseEngagement > 75 ? 'Excellent' : baseEngagement > 60 ? 'Good' : 'Needs Attention'
+        });
+    }
+    
+    return data;
+}
+
+// Export Analytics as CSV
+function exportAnalyticsCSV(data) {
+    // Create CSV header
+    const headers = ['Date', 'Session', 'Students Present', 'Attendance %', 'Engagement %', 'Attention %', 'Status'];
+    
+    // Create CSV rows
+    const rows = data.map(row => [
+        row.date,
+        row.session,
+        row.students,
+        row.attendance,
+        row.engagement,
+        row.attention,
+        row.status
+    ]);
+    
+    // Combine headers and rows
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `smart_classroom_analytics_${dateStr}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Show success notification
+    showNotification('Analytics data exported successfully!', 'success');
+}
+
+// Populate Analytics Table
+function populateAnalyticsTable(data) {
+    const tbody = document.getElementById('analyticsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = data.map(row => `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 12px; font-size: 14px;">${new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+            <td style="padding: 12px; font-size: 14px;">${row.session}</td>
+            <td style="padding: 12px; text-align: center; font-size: 14px; font-weight: 600;">${row.students}/32</td>
+            <td style="padding: 12px; text-align: center; font-size: 14px;">
+                <span class="badge" style="background: ${row.attendance >= 80 ? '#10b981' : row.attendance >= 60 ? '#f59e0b' : '#ef4444'};">
+                    ${row.attendance}%
+                </span>
+            </td>
+            <td style="padding: 12px; text-align: center; font-size: 14px;">
+                <span class="badge" style="background: ${row.engagement >= 75 ? '#10b981' : row.engagement >= 60 ? '#f59e0b' : '#ef4444'};">
+                    ${row.engagement}%
+                </span>
+            </td>
+            <td style="padding: 12px; text-align: center; font-size: 14px;">
+                <span class="badge" style="background: ${row.attention >= 75 ? '#10b981' : row.attention >= 60 ? '#f59e0b' : '#ef4444'};">
+                    ${row.attention}%
+                </span>
+            </td>
+            <td style="padding: 12px; font-size: 14px;">
+                <span style="color: ${row.status === 'Excellent' ? '#10b981' : row.status === 'Good' ? '#f59e0b' : '#ef4444'}; font-weight: 600;">
+                    ${row.status}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Initialize Analytics Charts
+function initAnalyticsEngagementChart(data) {
+    const ctx = document.getElementById('analyticsEngagementChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+            datasets: [
+                {
+                    label: 'Engagement',
+                    data: data.map(d => d.engagement),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3
+                },
+                {
+                    label: 'Attention',
+                    data: data.map(d => d.attention),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initAnalyticsAttendanceChart(data) {
+    const ctx = document.getElementById('analyticsAttendanceChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+            datasets: [{
+                label: 'Students Present',
+                data: data.map(d => d.students),
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true,
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 35,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initAnalyticsEmotionChart() {
+    const ctx = document.getElementById('analyticsEmotionChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Happy', 'Neutral', 'Focused', 'Confused', 'Bored'],
+            datasets: [{
+                data: [35, 30, 20, 10, 5],
+                backgroundColor: ['#10b981', '#6b7280', '#3b82f6', '#f59e0b', '#ef4444'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function initAnalyticsHourlyChart() {
+    const ctx = document.getElementById('analyticsHourlyChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM'],
+            datasets: [{
+                label: 'Avg Engagement',
+                data: [65, 72, 85, 82, 70, 75, 78, 73, 68],
+                backgroundColor: '#8b5cf6',
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initAnalyticsWeeklyChart() {
+    const ctx = document.getElementById('analyticsWeeklyChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            datasets: [{
+                label: 'Engagement',
+                data: [78, 82, 75, 85, 80],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateAnalyticsCharts(data) {
+    // This function would update charts when date range changes
+    // For now, just reload the page
+    loadAnalytics();
 }
 
 function loadHelp() {
@@ -459,4 +999,72 @@ function searchHelpContent(query) {
             item.style.display = 'none';
         }
     });
+}
+
+// Global notification function (used across all pages)
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 20px;
+        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info';
+    notification.innerHTML = `
+        <i data-lucide="${icon}" style="width: 20px; height: 20px;"></i>
+        <span>${message}</span>
+    `;
+    
+    document.body.appendChild(notification);
+    lucide.createIcons();
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Add notification animation styles if not already present
+if (!document.getElementById('notification-animations-style')) {
+    const notificationStyle = document.createElement('style');
+    notificationStyle.id = 'notification-animations-style';
+    notificationStyle.textContent = `
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(notificationStyle);
 }

@@ -381,21 +381,68 @@ def get_engagement_trends():
 def get_attendance_report():
     """Get detailed attendance report"""
     month = request.args.get('month', default=datetime.now().month, type=int)
+    days = request.args.get('days', default=30, type=int)
+    
+    # Generate report data
+    report_data = []
+    today = datetime.now()
+    
+    for i in range(days - 1, -1, -1):
+        date = today - timedelta(days=i)
+        # Skip weekends
+        if date.weekday() >= 5:
+            continue
+            
+        report_data.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'present': random.randint(25, 32),
+            'absent': random.randint(0, 7),
+            'total': 32,
+            'percentage': round(random.uniform(78, 100), 1)
+        })
     
     report = {
-        'month': month,
-        'totalClasses': 20,
-        'avgAttendance': 87.5,
-        'dailyData': [
-            {
-                'date': f'2024-{month:02d}-{i:02d}',
-                'present': random.randint(25, 32),
-                'absent': random.randint(0, 7)
-            }
-            for i in range(1, 21)
-        ]
+        'period': f'Last {days} days',
+        'totalClasses': len(report_data),
+        'avgAttendance': round(sum(d['percentage'] for d in report_data) / len(report_data), 1) if report_data else 0,
+        'dailyData': report_data
     }
     return jsonify(report), 200
+
+
+@app.route('/api/analytics/export', methods=['GET'])
+def export_analytics():
+    """Export analytics data as CSV"""
+    days = request.args.get('days', default=30, type=int)
+    
+    # Generate analytics data
+    analytics_data = []
+    today = datetime.now()
+    
+    for i in range(days - 1, -1, -1):
+        date = today - timedelta(days=i)
+        # Skip weekends
+        if date.weekday() >= 5:
+            continue
+        
+        engagement = random.randint(65, 90)
+        attendance = random.randint(25, 32)
+        
+        analytics_data.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'session': f"{date.hour}:00 {'PM' if date.hour >= 12 else 'AM'} - CS101",
+            'students': attendance,
+            'attendance_percent': round((attendance / 32) * 100, 1),
+            'engagement': engagement,
+            'attention': engagement + random.randint(-5, 5),
+            'status': 'Excellent' if engagement > 75 else 'Good' if engagement > 60 else 'Needs Attention'
+        })
+    
+    return jsonify({
+        'success': True,
+        'data': analytics_data,
+        'generated_at': datetime.now().isoformat()
+    }), 200
 
 
 # =========================
@@ -578,12 +625,24 @@ def start_camera():
 @app.route('/api/camera/stop', methods=['POST'])
 def stop_camera():
     """Stop active camera stream"""
-    global active_camera_stream
+    global active_camera_stream, current_emotion_stats
     
     try:
         if active_camera_stream:
             active_camera_stream.stop()
             active_camera_stream = None
+        
+        # Reset emotion stats
+        current_emotion_stats = {
+            'total_faces': 0,
+            'emotions': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
+            'emotion_percentages': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
+            'engagement': 0
+        }
+        
+        # Reset dashboard stats to default values
+        classroom_data['current_stats']['studentsDetected'] = 0
+        classroom_data['current_stats']['avgEngagement'] = 78
             
         return jsonify({
             'success': True,
@@ -626,7 +685,12 @@ def generate_frames():
     global active_camera_stream, emotion_detector, current_emotion_stats
     
     while True:
-        if active_camera_stream and active_camera_stream.is_running:
+        # Check if camera is still active
+        if not active_camera_stream or not active_camera_stream.is_running:
+            print("Camera stream stopped, ending frame generation")
+            break
+            
+        try:
             frame = active_camera_stream.read_frame()
             
             if frame is not None:
@@ -656,8 +720,10 @@ def generate_frames():
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
             else:
+                print("No frame received from camera")
                 break
-        else:
+        except Exception as e:
+            print(f"Error generating frame: {e}")
             break
 
 

@@ -145,10 +145,18 @@ class CameraStream:
             return False
     
     def stop(self):
-        """Stop camera capture"""
+        """Stop camera capture and release resources"""
+        self.is_running = False
         if self.capture:
-            self.capture.release()
-            self.is_running = False
+            try:
+                self.capture.release()
+                # Wait briefly to ensure resources are released
+                import time
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"Warning: Error releasing camera: {e}")
+            finally:
+                self.capture = None
     
     def read_frame(self):
         """Read a single frame from camera"""
@@ -157,6 +165,10 @@ class CameraStream:
             if ret:
                 return frame
         return None
+    
+    def __del__(self):
+        """Destructor to ensure camera is released"""
+        self.stop()
     
     def get_frame_dimensions(self) -> tuple:
         """Get current frame width and height"""

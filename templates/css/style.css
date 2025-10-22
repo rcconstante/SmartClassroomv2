@@ -1409,3 +1409,63 @@ input:checked + .toggle-slider:before {
         max-height: 250px !important;
     }
 }
+
+/* Form Elements */
+.form-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.form-select:hover {
+    border-color: var(--primary-color);
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+/* Analytics Table Styles */
+#analyticsTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#analyticsTable thead tr {
+    background: var(--bg-primary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+#analyticsTable th {
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#analyticsTable tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.2s;
+}
+
+#analyticsTable tbody tr:hover {
+    background: var(--bg-primary);
+}
+
+#analyticsTable td {
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+

@@ -301,3 +301,16 @@ class EmotionDetector:
         
         engagement = (weighted_sum / total_faces) * 100
         return round(engagement, 2)
+    
+    def cleanup(self):
+        """Cleanup resources"""
+        # Reset emotion counts
+        self.emotion_counts = {emotion: 0 for emotion in EMOTION_LABELS}
+        # Clear any cached data
+        if hasattr(self, 'model') and self.model is not None:
+            # Model cleanup if needed
+            pass
+    
+    def __del__(self):
+        """Destructor to ensure proper cleanup"""
+        self.cleanup()

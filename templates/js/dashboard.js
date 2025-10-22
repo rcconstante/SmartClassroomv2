@@ -160,15 +160,15 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Attendance Overview -->
+            <!-- Occupancy Overview -->
             <div class="card card-half">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Attendance Overview</h3>
-                        <p class="card-subtitle">Last 7 days</p>
+                        <h3 class="card-title">Occupancy</h3>
+                        <p class="card-subtitle">Real-time classroom occupancy trends</p>
                     </div>
                     <button class="card-action">
-                        <i data-lucide="calendar"></i>
+                        <i data-lucide="users"></i>
                     </button>
                 </div>
                 <div class="chart-container">
@@ -193,38 +193,38 @@ function loadDashboard() {
                         </button>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; margin-top: 16px;">
-                    <!-- Camera Feed Container -->
-                    <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; min-height: 380px; display: flex; align-items: center; justify-content: center;" id="cameraFeedContainer">
-                        <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px;">
+                    <!-- Camera Feed Container - Optimized Size -->
+                    <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 4/3; max-height: 360px; display: flex; align-items: center; justify-content: center;" id="cameraFeedContainer">
+                        <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
                             <i data-lucide="camera" style="width: 48px; height: 48px; color: #6b7280;"></i>
-                            <p style="color: #9ca3af; font-size: 14px;" id="cameraStatusText">Camera feed will be displayed here</p>
+                            <p style="color: #9ca3af; font-size: 14px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
                             <button class="btn btn-primary" id="startCameraBtn">
                                 <i data-lucide="play"></i>
                                 Start Camera
                             </button>
                         </div>
                         <!-- Detection badge (hidden by default) -->
-                        <div id="detectionBadge" style="position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: rgba(16, 185, 129, 0.9); color: white; border-radius: 6px; font-size: 11px; font-weight: 600; display: none; align-items: center; gap: 6px;">
+                        <div id="detectionBadge" style="position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: rgba(16, 185, 129, 0.95); color: white; border-radius: 6px; font-size: 11px; font-weight: 600; display: none; align-items: center; gap: 6px; backdrop-filter: blur(8px);">
                             <i data-lucide="user-check" style="width: 12px; height: 12px;"></i>
                             <span id="studentsDetectedBadge">0</span> Students
                         </div>
                         <!-- Camera controls (hidden by default) -->
-                        <div id="cameraControls" style="position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 10;">
-                            <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; display: flex; align-items: center; gap: 6px;">
+                        <div id="cameraControls" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 10;">
+                            <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 8px 16px;">
                                 <i data-lucide="square" style="width: 14px; height: 14px;"></i>
                                 Stop Camera
                             </button>
                         </div>
                         <!-- Exit fullscreen button (hidden by default) -->
-                        <button id="exitFullscreenBtn" style="position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.8); color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; display: none; z-index: 10; align-items: center; gap: 6px; font-size: 13px;">
+                        <button id="exitFullscreenBtn" style="position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.8); color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; display: none; z-index: 10; align-items: center; gap: 6px; font-size: 13px; backdrop-filter: blur(8px);">
                             <i data-lucide="minimize-2" style="width: 14px; height: 14px;"></i>
                             Exit Fullscreen
                         </button>
                     </div>
                     
                     <!-- Real-time Metrics with Emotion Pie Chart -->
-                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
                         <div style="background: var(--bg-primary); border-radius: 12px; padding: 14px;">
                             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                                 <div style="width: 36px; height: 36px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
@@ -320,9 +320,9 @@ function loadDashboard() {
                     </div>
                 </div>
                 <div style="padding: 20px;">
-                    <canvas id="emotionChart" style="max-height: 250px;"></canvas>
+                    <canvas id="emotionChart" style="max-height: 220px;"></canvas>
                 </div>
-                <div id="emotionLegend" style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 16px 16px;">
+                <div id="emotionLegend" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 16px;">
                     <!-- Emotion legend will be populated dynamically -->
                 </div>
             </div>
@@ -335,7 +335,7 @@ function loadDashboard() {
                         <p class="card-subtitle">Real-time conditions</p>
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 14px;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -370,6 +370,30 @@ function loadDashboard() {
                         </div>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: 85%; background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="wind" style="width: 18px; height: 18px; color: #10b981;"></i>
+                                <span style="font-size: 14px; font-weight: 500;">Air Quality</span>
+                            </div>
+                            <span style="font-size: 18px; font-weight: 600;">Good</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 90%; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="users" style="width: 18px; height: 18px; color: #8b5cf6;"></i>
+                                <span style="font-size: 14px; font-weight: 500;">Occupancy</span>
+                            </div>
+                            <span style="font-size: 18px; font-weight: 600;">28/32</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 87%; background: linear-gradient(90deg, #8b5cf6, #a78bfa);"></div>
                         </div>
                     </div>
                 </div>
@@ -567,27 +591,41 @@ function initEngagementChart() {
     });
 }
 
-// Initialize Attendance Chart
+// Initialize Occupancy Chart (changed from Attendance)
 function initAttendanceChart() {
     const ctx = document.getElementById('attendanceChart');
     if (!ctx) return;
 
     new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
             datasets: [
                 {
-                    label: 'Present',
+                    label: 'Students Present',
                     data: [28, 30, 27, 29, 28, 25, 26],
-                    backgroundColor: '#10b981',
-                    borderRadius: 8
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 },
                 {
-                    label: 'Absent',
-                    data: [4, 2, 5, 3, 4, 7, 6],
-                    backgroundColor: '#ef4444',
-                    borderRadius: 8
+                    label: 'Capacity',
+                    data: [32, 32, 32, 32, 32, 32, 32],
+                    borderColor: '#6b7280',
+                    backgroundColor: 'rgba(107, 114, 128, 0.05)',
+                    borderDash: [5, 5],
+                    tension: 0,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 0
                 }
             ]
         },
@@ -599,7 +637,40 @@ function initAttendanceChart() {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        padding: 15
+                        padding: 15,
+                        font: {
+                            size: 13,
+                            weight: 500
+                        }
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    borderRadius: 8,
+                    titleFont: {
+                        size: 14,
+                        weight: 600
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y;
+                            if (context.datasetIndex === 0) {
+                                const capacity = 32;
+                                const percentage = Math.round((context.parsed.y / capacity) * 100);
+                                label += ` (${percentage}% occupancy)`;
+                            }
+                            return label;
+                        }
                     }
                 }
             },
@@ -608,7 +679,14 @@ function initAttendanceChart() {
                     beginAtZero: true,
                     max: 35,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        stepSize: 5,
+                        callback: function(value) {
+                            return value + ' students';
+                        }
                     }
                 },
                 x: {
@@ -616,6 +694,11 @@ function initAttendanceChart() {
                         display: false
                     }
                 }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
             }
         }
     });
@@ -623,63 +706,115 @@ function initAttendanceChart() {
 
 // Initialize Emotion Detection Chart
 let emotionChart = null;
+let emotionChartMini = null;
 
 function initEmotionChart() {
+    // Main emotion chart
     const ctx = document.getElementById('emotionChart');
-    if (!ctx) return;
+    if (ctx) {
+        // Define emotion colors
+        const emotionColors = {
+            'Happy': '#10b981',
+            'Neutral': '#6b7280',
+            'Sad': '#3b82f6',
+            'Angry': '#ef4444',
+            'Surprise': '#f59e0b',
+            'Fear': '#8b5cf6',
+            'Disgust': '#ec4899'
+        };
 
-    // Define emotion colors
-    const emotionColors = {
-        'Happy': '#10b981',
-        'Neutral': '#6b7280',
-        'Sad': '#3b82f6',
-        'Angry': '#ef4444',
-        'Surprise': '#f59e0b',
-        'Fear': '#8b5cf6',
-        'Disgust': '#ec4899'
-    };
-
-    emotionChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'],
-            datasets: [{
-                data: [0, 0, 0, 0, 0, 0, 0],
-                backgroundColor: [
-                    emotionColors.Happy,
-                    emotionColors.Neutral,
-                    emotionColors.Sad,
-                    emotionColors.Angry,
-                    emotionColors.Surprise,
-                    emotionColors.Fear,
-                    emotionColors.Disgust
-                ],
-                borderWidth: 2,
-                borderColor: '#ffffff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            return `${label}: ${value.toFixed(1)}%`;
+        emotionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        emotionColors.Happy,
+                        emotionColors.Neutral,
+                        emotionColors.Sad,
+                        emotionColors.Angry,
+                        emotionColors.Surprise,
+                        emotionColors.Fear,
+                        emotionColors.Disgust
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                return `${label}: ${value.toFixed(1)}%`;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
 
-    // Create custom legend
-    updateEmotionLegend(emotionColors);
+        // Create custom legend
+        updateEmotionLegend(emotionColors);
+    }
+    
+    // Mini emotion chart in camera monitor
+    const ctxMini = document.getElementById('emotionChartMini');
+    if (ctxMini) {
+        const emotionColors = {
+            'Happy': '#10b981',
+            'Neutral': '#6b7280',
+            'Sad': '#3b82f6',
+            'Angry': '#ef4444',
+            'Surprise': '#f59e0b',
+            'Fear': '#8b5cf6',
+            'Disgust': '#ec4899'
+        };
+
+        emotionChartMini = new Chart(ctxMini, {
+            type: 'doughnut',
+            data: {
+                labels: ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        emotionColors.Happy,
+                        emotionColors.Neutral,
+                        emotionColors.Sad,
+                        emotionColors.Angry,
+                        emotionColors.Surprise,
+                        emotionColors.Fear,
+                        emotionColors.Disgust
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+
+        // Create custom mini legend
+        updateEmotionLegendMini(emotionColors);
+    }
 }
 
 function updateEmotionLegend(emotionColors) {
@@ -689,8 +824,21 @@ function updateEmotionLegend(emotionColors) {
     const emotions = ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'];
     legendContainer.innerHTML = emotions.map(emotion => `
         <div style="display: flex; align-items: center; gap: 6px;">
-            <div style="width: 12px; height: 12px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
-            <span style="font-size: 12px; color: var(--text-secondary);">${emotion}</span>
+            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
+            <span style="font-size: 11px; color: var(--text-secondary);">${emotion}</span>
+        </div>
+    `).join('');
+}
+
+function updateEmotionLegendMini(emotionColors) {
+    const legendContainer = document.getElementById('emotionLegendMini');
+    if (!legendContainer) return;
+
+    const emotions = ['Happy', 'Sad', 'Surprise', 'Angry'];
+    legendContainer.innerHTML = emotions.map(emotion => `
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
+            <span style="font-size: 9px; color: var(--text-secondary);">${emotion}</span>
         </div>
     `).join('');
 }
@@ -703,11 +851,9 @@ async function fetchEmotionData() {
         const response = await fetch('/api/emotions');
         const result = await response.json();
 
-        if (result.success && emotionChart) {
+        if (result.success) {
             const emotionPercentages = result.data.emotion_percentages;
-            
-            // Update chart data
-            emotionChart.data.datasets[0].data = [
+            const emotionData = [
                 emotionPercentages.Happy || 0,
                 emotionPercentages.Neutral || 0,
                 emotionPercentages.Sad || 0,
@@ -717,7 +863,17 @@ async function fetchEmotionData() {
                 emotionPercentages.Disgust || 0
             ];
             
-            emotionChart.update('none'); // Update without animation for real-time feel
+            // Update main chart
+            if (emotionChart) {
+                emotionChart.data.datasets[0].data = emotionData;
+                emotionChart.update('none');
+            }
+            
+            // Update mini chart
+            if (emotionChartMini) {
+                emotionChartMini.data.datasets[0].data = emotionData;
+                emotionChartMini.update('none');
+            }
         }
     } catch (error) {
         console.error('Error fetching emotion data:', error);
@@ -808,12 +964,14 @@ async function startCamera() {
                 videoElement.id = 'cameraVideoStream';
                 videoElement.style.width = '100%';
                 videoElement.style.height = '100%';
-                videoElement.style.objectFit = 'contain';
+                videoElement.style.objectFit = 'cover';
                 videoElement.style.borderRadius = '12px';
+                videoElement.style.maxHeight = '100%';
                 cameraFeedContainer.appendChild(videoElement);
             }
-            // Set video stream source
+            // Set video stream source with cache-busting timestamp
             videoElement.src = `/api/camera/stream?t=${Date.now()}`;
+            videoElement.style.display = 'block';
         }
         
         // Show detection badge and camera controls
@@ -845,13 +1003,24 @@ async function startCamera() {
         // Show error state
         const cameraStatusText = document.getElementById('cameraStatusText');
         if (cameraStatusText) {
-            cameraStatusText.textContent = error.message;
-            cameraStatusText.style.color = '#ef4444';
+            cameraStatusText.innerHTML = `<span style="color: #ef4444;">${error.message}</span><br><small style="color: #9ca3af; font-size: 12px;">Please try again</small>`;
         }
         
-        startCameraBtn.disabled = false;
-        startCameraBtn.innerHTML = '<i data-lucide="play"></i> Start Camera';
-        startCameraBtn.style.background = '';
+        // Reset start button to allow retry
+        if (startCameraBtn) {
+            startCameraBtn.disabled = false;
+            startCameraBtn.innerHTML = '<i data-lucide="play"></i> Start Camera';
+            startCameraBtn.style.background = '';
+        }
+        
+        // Ensure placeholder is visible
+        if (cameraPlaceholder) {
+            cameraPlaceholder.style.display = 'flex';
+        }
+        
+        // Ensure camera is marked as inactive
+        cameraActive = false;
+        
         lucide.createIcons();
         
         showNotification(error.message, 'error');
@@ -862,7 +1031,9 @@ async function startCamera() {
 // Stop camera
 async function stopCamera() {
     const stopCameraBtn = document.getElementById('stopCameraBtn');
+    const startCameraBtn = document.getElementById('startCameraBtn');
     const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const cameraStatusText = document.getElementById('cameraStatusText');
     const detectionBadge = document.getElementById('detectionBadge');
     const cameraControls = document.getElementById('cameraControls');
     
@@ -899,6 +1070,19 @@ async function stopCamera() {
         
         if (cameraPlaceholder) {
             cameraPlaceholder.style.display = 'flex';
+        }
+        
+        // Reset camera status text to default
+        if (cameraStatusText) {
+            cameraStatusText.textContent = 'Camera feed will be displayed here';
+            cameraStatusText.style.color = '#9ca3af';
+        }
+        
+        // Reset start camera button to default state
+        if (startCameraBtn) {
+            startCameraBtn.disabled = false;
+            startCameraBtn.innerHTML = '<i data-lucide="play"></i> Start Camera';
+            startCameraBtn.style.background = '';
         }
         
         // Hide detection badge and controls
@@ -1081,7 +1265,7 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Add CSS animations
+// Add CSS animations and fullscreen styles
 if (!document.getElementById('dashboard-animations-style')) {
     const dashboardAnimationStyle = document.createElement('style');
     dashboardAnimationStyle.id = 'dashboard-animations-style';
@@ -1106,6 +1290,43 @@ if (!document.getElementById('dashboard-animations-style')) {
                 transform: translateX(400px);
                 opacity: 0;
             }
+        }
+        
+        /* Fullscreen camera styles */
+        #cameraFeedContainer:fullscreen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        
+        #cameraFeedContainer:-webkit-full-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        
+        #cameraFeedContainer:fullscreen #cameraVideoStream {
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        #cameraFeedContainer:-webkit-full-screen #cameraVideoStream {
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        /* Ensure proper video sizing in normal mode */
+        #cameraVideoStream {
+            display: block;
+            margin: auto;
         }
     `;
     document.head.appendChild(dashboardAnimationStyle);
