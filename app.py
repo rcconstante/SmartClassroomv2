@@ -265,7 +265,26 @@ def get_attendance_data():
 
 @app.route('/api/dashboard/environment', methods=['GET'])
 def get_environment_data():
-    """Get environmental monitoring data"""
+    """Get environmental monitoring data (from IoT sensors if available)"""
+    
+    # Try to get real IoT data
+    if iot_enabled and get_iot_data:
+        iot_data = get_iot_data()
+        if iot_data and iot_data.get('timestamp'):
+            environment = {
+                'temperature': iot_data.get('raw_temperature', 24.0),
+                'humidity': iot_data.get('raw_humidity', 55.0),
+                'co2': iot_data.get('raw_gas', 500),  # MQ135 gas sensor
+                'lightLevel': iot_data.get('raw_light', 400),
+                'noiseLevel': iot_data.get('raw_sound', 40),
+                'status': 'optimal' if iot_data.get('environmental_score', 75) > 70 else 'warning',
+                'environmental_score': iot_data.get('environmental_score', 75),
+                'timestamp': iot_data.get('timestamp').isoformat() if iot_data.get('timestamp') else datetime.now().isoformat(),
+                'source': 'iot_sensors'
+            }
+            return jsonify(environment), 200
+    
+    # Fallback to simulated data if IoT not available
     environment = {
         'temperature': round(random.uniform(22, 26), 1),
         'humidity': random.randint(45, 65),
@@ -273,9 +292,95 @@ def get_environment_data():
         'lightLevel': random.randint(300, 500),
         'noiseLevel': random.randint(30, 50),
         'status': 'optimal',
-        'timestamp': datetime.now().isoformat()
+        'environmental_score': random.randint(70, 90),
+        'timestamp': datetime.now().isoformat(),
+        'source': 'simulated'
     }
     return jsonify(environment), 200
+
+
+@app.route('/api/iot/status', methods=['GET'])
+def get_iot_sensor_status():
+    """Get IoT sensor connection status"""
+    if not iot_enabled or not get_iot_status:
+        return jsonify({
+            'success': False,
+            'connected': False,
+            'message': 'IoT sensors not initialized'
+        }), 200
+    
+    status = get_iot_status()
+    return jsonify({
+        'success': True,
+        **status
+    }), 200
+
+
+@app.route('/api/iot/data', methods=['GET'])
+def get_iot_sensor_data():
+    """Get current IoT sensor readings"""
+    if not iot_enabled or not get_iot_data:
+        return jsonify({
+            'success': False,
+            'error': 'IoT sensors not available'
+        }), 503
+    
+    data = get_iot_data()
+    if not data or not data.get('timestamp'):
+        return jsonify({
+            'success': False,
+            'error': 'No sensor data available'
+        }), 503
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'temperature': {
+                'value': data.get('raw_temperature'),
+                'normalized': data.get('temperature'),
+                'unit': '°C'
+            },
+            'humidity': {
+                'value': data.get('raw_humidity'),
+                'normalized': data.get('humidity'),
+                'unit': '%'
+            },
+            'light': {
+                'value': data.get('raw_light'),
+                'normalized': data.get('light'),
+                'unit': 'lux'
+            },
+            'sound': {
+                'value': data.get('raw_sound'),
+                'normalized': data.get('sound'),
+                'unit': 'ADC'
+            },
+            'gas': {
+                'value': data.get('raw_gas'),
+                'normalized': data.get('gas'),
+                'unit': 'ADC'
+            },
+            'environmental_score': data.get('environmental_score'),
+            'timestamp': data.get('timestamp').isoformat() if data.get('timestamp') else None
+        }
+    }), 200
+
+
+@app.route('/api/iot/alerts', methods=['GET'])
+def get_iot_sensor_alerts():
+    """Get IoT sensor alerts (out of range values)"""
+    if not iot_enabled or not get_iot_alerts:
+        return jsonify({
+            'success': True,
+            'alerts': []
+        }), 200
+    
+    alerts = get_iot_alerts()
+    return jsonify({
+        'success': True,
+        'alerts': alerts,
+        'count': len(alerts)
+    }), 200
 
 
 # =========================
@@ -479,6 +584,8 @@ def get_alerts():
 try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
+    from camera_system.ml_models import LSTMPredictor
+    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
     CAMERA_SYSTEM_AVAILABLE = True
     print("✓ Camera system loaded successfully")
 except ImportError as e:
@@ -487,16 +594,42 @@ except ImportError as e:
     CameraDetector = None
     CameraStream = None
     EmotionDetector = None
+    LSTMPredictor = None
+    initialize_iot = None
+    get_iot_data = None
+    get_iot_status = None
+    get_iot_alerts = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
 emotion_detector = None
+lstm_predictor = None
+iot_enabled = False
 current_emotion_stats = {
     'total_faces': 0,
-    'emotions': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
-    'emotion_percentages': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
+    'emotions': {'Confused': 0, 'Frustrated': 0, 'Drowsy': 0, 'Bored': 0, 'Looking Away': 0, 'Engaged': 0},
+    'emotion_percentages': {'Confused': 0, 'Frustrated': 0, 'Drowsy': 0, 'Bored': 0, 'Looking Away': 0, 'Engaged': 0},
     'engagement': 0
 }
+
+# Initialize LSTM predictor
+if CAMERA_SYSTEM_AVAILABLE and LSTMPredictor:
+    lstm_predictor = LSTMPredictor()
+    # Try to load trained model (optional)
+    model_path = os.path.join('static', 'model', 'lstm_classroom_model.h5')
+    if os.path.exists(model_path):
+        lstm_predictor.load_model(model_path)
+    print("✓ LSTM predictor initialized")
+
+# Initialize IoT sensors (optional - won't fail if not available)
+if CAMERA_SYSTEM_AVAILABLE and initialize_iot:
+    # Try to initialize IoT sensors
+    # You can specify port here, or it will auto-detect
+    # Example: initialize_iot(port='COM3')  # Windows
+    # Example: initialize_iot(port='/dev/ttyUSB0')  # Linux
+    iot_enabled = initialize_iot()  # Auto-detect
+    if not iot_enabled:
+        print("ℹ IoT sensors not connected (system will work without them)")
 
 @app.route('/api/camera/detect', methods=['GET'])
 def detect_cameras():
@@ -635,8 +768,8 @@ def stop_camera():
         # Reset emotion stats
         current_emotion_stats = {
             'total_faces': 0,
-            'emotions': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
-            'emotion_percentages': {'Angry': 0, 'Disgust': 0, 'Fear': 0, 'Happy': 0, 'Sad': 0, 'Surprise': 0, 'Neutral': 0},
+            'emotions': {'Confused': 0, 'Frustrated': 0, 'Drowsy': 0, 'Bored': 0, 'Looking Away': 0, 'Engaged': 0},
+            'emotion_percentages': {'Confused': 0, 'Frustrated': 0, 'Drowsy': 0, 'Bored': 0, 'Looking Away': 0, 'Engaged': 0},
             'engagement': 0
         }
         
@@ -749,6 +882,63 @@ def get_emotions():
         'success': True,
         'data': current_emotion_stats
     }), 200
+
+
+@app.route('/api/lstm/predict', methods=['GET', 'POST'])
+def lstm_predict():
+    """Get LSTM predictions for engagement trends"""
+    global lstm_predictor, current_emotion_stats
+    
+    if not CAMERA_SYSTEM_AVAILABLE or lstm_predictor is None:
+        return jsonify({
+            'success': False,
+            'error': 'LSTM predictor not available'
+        }), 503
+    
+    try:
+        # Get IoT sensor data if available
+        iot_data = None
+        environmental_score = 75.0  # Default
+        
+        if iot_enabled and get_iot_data:
+            sensor_data = get_iot_data()
+            if sensor_data and sensor_data.get('timestamp'):
+                iot_data = {
+                    'temperature': sensor_data.get('temperature', 50.0),
+                    'humidity': sensor_data.get('humidity', 50.0),
+                    'light': sensor_data.get('light', 50.0),
+                    'sound': sensor_data.get('sound', 50.0),
+                    'gas': sensor_data.get('gas', 50.0)
+                }
+                environmental_score = sensor_data.get('environmental_score', 75.0)
+        
+        # Update LSTM with current observation (including IoT data)
+        observation = {
+            'attention': classroom_data['current_stats']['attentionLevel'],
+            'engagement': classroom_data['current_stats']['avgEngagement'],
+            'state_counts': current_emotion_stats['emotion_percentages'],
+            'student_count': classroom_data['current_stats']['studentsDetected'],
+            'iot_data': iot_data,  # Pass IoT sensor readings to LSTM
+            'environmental_score': environmental_score,
+            'timestamp': datetime.now()
+        }
+        
+        lstm_predictor.update_history(observation)
+        
+        # Get predictions
+        predictions = lstm_predictor.get_prediction_from_history()
+        
+        return jsonify({
+            'success': True,
+            'data': predictions,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 # =========================

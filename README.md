@@ -2,15 +2,30 @@
 
 A modern web application for classroom monitoring and management with real-time engagement tracking, attendance monitoring, and environmental controls.
 
+# Flask Configuration
+FLASK_APP=app.py
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# Security
+SECRET_KEY=your-secret-key-change-in-production
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=5000
+
 ## Features
 
-- 📊 Real-time student engagement monitoring
-- 📋 Attendance tracking and reporting
-- 🌡️ Environmental monitoring (temperature, humidity, CO2)
-- 👥 Student management
-- 📈 Analytics and reporting
-- 🌙 Dark mode support
-- ⚙️ Customizable settings
+- 📊 **Real-time student engagement monitoring** with AI-powered computer vision
+- 🎯 **Engagement state detection** (Engaged, Confused, Frustrated, Drowsy, Bored, Looking Away)
+- � **LSTM-based prediction** for engagement trend forecasting
+- �📋 **Attendance tracking** and reporting
+- 🌡️ **Environmental monitoring** (temperature, humidity, CO2)
+- 👥 **Student management**
+- 📈 **Analytics and reporting** with CSV export
+- 🎥 **Dedicated camera monitor page** with full-screen view
+- 🌙 **Dark mode support**
+- ⚙️ **Customizable settings**
 
 ## Technology Stack
 
@@ -24,6 +39,12 @@ A modern web application for classroom monitoring and management with real-time 
 - Python 3.8+
 - Flask web framework
 - Flask-CORS for cross-origin requests
+
+### AI/ML
+- **TensorFlow/Keras** for deep learning models
+- **OpenCV** for computer vision and face detection
+- **Student Engagement Model** for real-time state classification
+- **LSTM Model** for temporal pattern analysis and prediction
 
 ## Project Structure
 
@@ -128,6 +149,39 @@ The Flask app runs in debug mode during development, which enables:
 - Detailed error messages
 - Interactive debugger
 
+### AI Model Training
+
+The system uses two main AI models:
+
+1. **Student Engagement Model** (`Student_Engagement_Model.h5`)
+   - Classifies student states in real-time
+   - 6 classes: Engaged, Confused, Frustrated, Drowsy, Bored, Looking Away
+   - Location: `static/model/Student_Engagement_Model.h5`
+
+2. **LSTM Prediction Model** (`lstm_classroom_model.h5`)
+   - Predicts engagement trends over time
+   - Forecasts next 10 minutes of classroom dynamics
+   - Location: `static/model/lstm_classroom_model.h5`
+
+**To train the LSTM model:**
+
+```bash
+# 1. Generate sample data (or use real data)
+cd training_scripts
+python generate_sample_data.py
+
+# 2. Prepare data for training
+python prepare_data.py
+
+# 3. Train the model
+python train_lstm.py
+
+# 4. Verify model file
+ls ../static/model/lstm_classroom_model.h5
+```
+
+**📚 For detailed training instructions, see:** `LSTM_TRAINING_GUIDE.md`
+
 ## Production Deployment
 
 Before deploying to production:
@@ -139,17 +193,40 @@ Before deploying to production:
 5. Implement proper authentication (JWT, OAuth)
 6. Enable HTTPS
 7. Set up proper logging
+8. **Train and deploy custom LSTM model** with your classroom data
 
-## Future Enhancements
+## Key Features Implemented
+
+### ✅ Completed Features
+
+- ✅ Real-time engagement detection with 6 states
+- ✅ LSTM-based trend prediction and forecasting
+- ✅ Dedicated camera monitor page with full-screen support
+- ✅ Comprehensive analytics with CSV export
+- ✅ Interactive charts and visualizations
+- ✅ Dark mode UI
+- ✅ Engagement trend indicators
+- ✅ Temporal pattern analysis
+
+### 🚧 Future Enhancements
 
 - [ ] Database integration (PostgreSQL/MySQL)
 - [ ] Real authentication with JWT
 - [ ] WebSocket support for real-time updates
-- [ ] Video stream processing
-- [ ] Machine learning for engagement detection
-- [ ] Email notifications
+- [ ] Multi-camera support
+- [ ] Email notifications and alerts
 - [ ] Report generation (PDF)
 - [ ] Mobile app support
+- [ ] Student individual tracking
+- [ ] Historical comparison reports
+- [ ] Integration with LMS systems
+
+## Documentation
+
+- **`README.md`** - Main project documentation (this file)
+- **`LSTM_TRAINING_GUIDE.md`** - Complete guide for training LSTM models
+- **`ENGAGEMENT_MODEL_UPDATE.md`** - Documentation of engagement model changes
+- **`data/README.md`** - Data collection and format guide
 
 ## License
 

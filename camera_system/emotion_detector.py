@@ -12,23 +12,19 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=filter INFO, 2=filter WARNING, 3=filter ERROR
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN custom operations messages
 
-# FER2013 Emotion labels in standard order
-# NOTE: If your model outputs are in different order, update this array
-EMOTION_LABELS = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
-
-# Alternative common orders (uncomment if your model uses different order):
-# EMOTION_LABELS = ['Angry', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']  # 6 classes
-# EMOTION_LABELS = ['Neutral', 'Happy', 'Sad', 'Surprise', 'Fear', 'Disgust', 'Angry']  # Alternative order
+# Student Engagement Model labels
+# Categories: Confused, Frustrated, Drowsy, Bored, Looking Away, Engaged
+EMOTION_LABELS = ['Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away', 'Engaged']
 
 class EmotionDetector:
-    """Detects facial emotions using pre-trained model"""
+    """Detects student engagement using pre-trained model"""
     
-    def __init__(self, model_path='static/model/emotion_model.h5'):
+    def __init__(self, model_path='static/model/Student_Engagement_Model.h5'):
         """
-        Initialize emotion detector
+        Initialize engagement detector
         
         Args:
-            model_path: Path to the trained emotion detection model (FER2013 CNN)
+            model_path: Path to the trained student engagement model
         """
         self.model = None
         self.model_path = model_path
@@ -40,7 +36,7 @@ class EmotionDetector:
         self._load_face_detector()
     
     def _load_model(self):
-        """Load the emotion detection model"""
+        """Load the student engagement model"""
         try:
             from tensorflow import keras
             import tensorflow as tf
@@ -48,15 +44,15 @@ class EmotionDetector:
             # Try multiple possible model paths
             possible_paths = [
                 self.model_path,
-                'static/model/emotion_model.h5',
-                'static/model/model.weights.h5'
+                'static/model/Student_Engagement_Model.h5',
+                'static/model/emotion_model.h5'
             ]
             
             model_loaded = False
             for path in possible_paths:
                 if os.path.exists(path):
                     try:
-                        print(f"Attempting to load emotion model from {path}")
+                        print(f"Attempting to load engagement model from {path}")
                         self.model = keras.models.load_model(path, compile=False)
                         
                         # Recompile model
@@ -66,7 +62,7 @@ class EmotionDetector:
                             metrics=['accuracy']
                         )
                         
-                        print(f"✓ Emotion model loaded successfully from {path}")
+                        print(f"✓ Engagement model loaded successfully from {path}")
                         print(f"  Model input shape: {self.model.input_shape}")
                         print(f"  Model output shape: {self.model.output_shape}")
                         model_loaded = True
@@ -76,11 +72,11 @@ class EmotionDetector:
                         continue
             
             if not model_loaded:
-                print(f"⚠ Warning: Could not load emotion model from any path")
+                print(f"⚠ Warning: Could not load engagement model from any path")
                 self.model = None
                 
         except Exception as e:
-            print(f"⚠ Warning: Could not load emotion model: {e}")
+            print(f"⚠ Warning: Could not load engagement model: {e}")
             import traceback
             traceback.print_exc()
             self.model = None
@@ -133,17 +129,16 @@ class EmotionDetector:
     
     def predict_emotion(self, face_image) -> Tuple[str, float]:
         """
-        Predict emotion from face image
-        FER2013-specific preprocessing
+        Predict student engagement state from face image
         
         Args:
             face_image: Cropped face image (BGR format from OpenCV)
             
         Returns:
-            Tuple of (emotion_label, confidence)
+            Tuple of (engagement_label, confidence)
         """
         if self.model is None:
-            return 'Neutral', 0.0
+            return 'Engaged', 0.0
         
         try:
             # Convert to grayscale if needed
@@ -175,23 +170,23 @@ class EmotionDetector:
             emotion_idx = np.argmax(predictions[0])
             confidence = float(predictions[0][emotion_idx])
             
-            # Map index to emotion label
+            # Map index to engagement label
             if 0 <= emotion_idx < len(EMOTION_LABELS):
                 emotion = EMOTION_LABELS[emotion_idx]
             else:
-                emotion = 'Neutral'
+                emotion = 'Engaged'
                 confidence = 0.0
             
             # Debug: Print result
-            print(f"Detected emotion: {emotion} ({confidence*100:.1f}%)")
+            print(f"Detected state: {emotion} ({confidence*100:.1f}%)")
             
             return emotion, confidence
             
         except Exception as e:
-            print(f"Error predicting emotion: {e}")
+            print(f"Error predicting engagement: {e}")
             import traceback
             traceback.print_exc()
-            return 'Neutral', 0.0
+            return 'Engaged', 0.0
     
     def process_frame(self, frame) -> Tuple[np.ndarray, Dict]:
         """
@@ -252,15 +247,14 @@ class EmotionDetector:
         return annotated_frame, emotion_stats
     
     def _get_emotion_color(self, emotion: str) -> Tuple[int, int, int]:
-        """Get BGR color for emotion"""
+        """Get BGR color for engagement state"""
         emotion_colors = {
-            'Happy': (0, 255, 0),      # Green
-            'Neutral': (255, 255, 0),  # Cyan
-            'Sad': (255, 0, 0),        # Blue
-            'Angry': (0, 0, 255),      # Red
-            'Surprise': (0, 255, 255), # Yellow
-            'Fear': (128, 0, 128),     # Purple
-            'Disgust': (0, 128, 128)   # Dark Yellow
+            'Engaged': (0, 255, 0),        # Green
+            'Confused': (0, 165, 255),     # Orange
+            'Frustrated': (0, 0, 255),     # Red
+            'Drowsy': (128, 0, 128),       # Purple
+            'Bored': (255, 255, 0),        # Cyan
+            'Looking Away': (0, 255, 255)  # Yellow
         }
         return emotion_colors.get(emotion, (255, 255, 255))
     
@@ -276,21 +270,20 @@ class EmotionDetector:
     
     def get_engagement_from_emotions(self) -> float:
         """
-        Calculate engagement score based on emotions
-        Positive emotions = higher engagement
+        Calculate engagement score based on student states
+        Engaged = higher score, other states = lower score
         """
         if sum(self.emotion_counts.values()) == 0:
             return 0.0
         
-        # Weight emotions for engagement calculation
+        # Weight engagement states for overall score
         engagement_weights = {
-            'Happy': 1.0,
-            'Neutral': 0.5,
-            'Surprise': 0.8,
-            'Sad': 0.2,
-            'Angry': 0.1,
-            'Fear': 0.3,
-            'Disgust': 0.1
+            'Engaged': 1.0,
+            'Confused': 0.4,
+            'Frustrated': 0.3,
+            'Drowsy': 0.1,
+            'Bored': 0.2,
+            'Looking Away': 0.3
         }
         
         total_faces = sum(self.emotion_counts.values())

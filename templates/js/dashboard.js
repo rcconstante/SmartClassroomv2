@@ -176,99 +176,6 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Computer Vision Monitor -->
-            <div class="card card-full">
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">AI Computer Vision Monitor</h3>
-                        <p class="card-subtitle">Real-time student attention and engagement detection</p>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span class="badge" id="cameraStatusBadge" style="background: #6b7280; display: flex; align-items: center; gap: 4px;">
-                            <i data-lucide="video-off" style="width: 12px; height: 12px;"></i>
-                            Offline
-                        </span>
-                        <button class="card-action" id="fullscreenBtn" title="Fullscreen">
-                            <i data-lucide="maximize-2"></i>
-                        </button>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px;">
-                    <!-- Camera Feed Container - Optimized Size -->
-                    <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 4/3; max-height: 360px; display: flex; align-items: center; justify-content: center;" id="cameraFeedContainer">
-                        <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
-                            <i data-lucide="camera" style="width: 48px; height: 48px; color: #6b7280;"></i>
-                            <p style="color: #9ca3af; font-size: 14px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
-                            <button class="btn btn-primary" id="startCameraBtn">
-                                <i data-lucide="play"></i>
-                                Start Camera
-                            </button>
-                        </div>
-                        <!-- Detection badge (hidden by default) -->
-                        <div id="detectionBadge" style="position: absolute; top: 12px; left: 12px; padding: 6px 10px; background: rgba(16, 185, 129, 0.95); color: white; border-radius: 6px; font-size: 11px; font-weight: 600; display: none; align-items: center; gap: 6px; backdrop-filter: blur(8px);">
-                            <i data-lucide="user-check" style="width: 12px; height: 12px;"></i>
-                            <span id="studentsDetectedBadge">0</span> Students
-                        </div>
-                        <!-- Camera controls (hidden by default) -->
-                        <div id="cameraControls" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; z-index: 10;">
-                            <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 8px 16px;">
-                                <i data-lucide="square" style="width: 14px; height: 14px;"></i>
-                                Stop Camera
-                            </button>
-                        </div>
-                        <!-- Exit fullscreen button (hidden by default) -->
-                        <button id="exitFullscreenBtn" style="position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.8); color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; display: none; z-index: 10; align-items: center; gap: 6px; font-size: 13px; backdrop-filter: blur(8px);">
-                            <i data-lucide="minimize-2" style="width: 14px; height: 14px;"></i>
-                            Exit Fullscreen
-                        </button>
-                    </div>
-                    
-                    <!-- Real-time Metrics with Emotion Pie Chart -->
-                    <div style="display: flex; flex-direction: column; gap: 16px;">
-                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 14px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                <div style="width: 36px; height: 36px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                    <i data-lucide="eye" style="width: 18px; height: 18px; color: #10b981;"></i>
-                                </div>
-                                <div>
-                                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 2px;">Attention Level</p>
-                                    <p style="font-size: 24px; font-weight: 700; color: var(--text-primary);" id="attentionLevel">82%</p>
-                                </div>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="attentionProgress" style="width: 82%;"></div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 14px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                                <div style="width: 36px; height: 36px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                    <i data-lucide="brain" style="width: 18px; height: 18px; color: #3b82f6;"></i>
-                                </div>
-                                <div>
-                                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 2px;">Engagement</p>
-                                    <p style="font-size: 24px; font-weight: 700; color: var(--text-primary);" id="engagementLevel">78%</p>
-                                </div>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="engagementProgress" style="width: 78%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
-                            </div>
-                        </div>
-                        
-                        <!-- Emotion Detection Pie Chart -->
-                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 14px;">
-                            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 600;">Emotion Detection</p>
-                            <div style="max-width: 180px; margin: 0 auto;">
-                                <canvas id="emotionChartMini" style="max-height: 180px;"></canvas>
-                            </div>
-                            <div id="emotionLegendMini" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; justify-content: center; font-size: 10px;">
-                                <!-- Emotion legend will be populated dynamically -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Recent Activity -->
             <div class="card card-third">
                 <div class="card-header">
@@ -311,19 +218,19 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Emotion Detection Chart -->
+            <!-- Engagement States Chart -->
             <div class="card card-third">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Emotion Detection</h3>
-                        <p class="card-subtitle">Real-time facial analysis</p>
+                        <h3 class="card-title">Engagement States</h3>
+                        <p class="card-subtitle">Real-time student analysis</p>
                     </div>
                 </div>
                 <div style="padding: 20px;">
                     <canvas id="emotionChart" style="max-height: 220px;"></canvas>
                 </div>
                 <div id="emotionLegend" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 16px;">
-                    <!-- Emotion legend will be populated dynamically -->
+                    <!-- Engagement legend will be populated dynamically -->
                 </div>
             </div>
 
@@ -403,72 +310,13 @@ function loadDashboard() {
             <div class="card card-full">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Schedule</h3>
+                        <h3 class="card-title">Today's Schedule</h3>
                         <p class="card-subtitle">October 13, 2025</p>
                     </div>
-                    <button class="btn btn-primary">
-                        <i data-lucide="plus"></i>
-                        Add Class
-                    </button>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px;">
-                    <div style="background: var(--bg-primary); border-radius: var(--border-radius-sm); padding: 16px; border-left: 4px solid #10b981;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                            <div>
-                                <h4 style="font-weight: 600; margin-bottom: 4px;">Computer Science 101</h4>
-                                <p style="font-size: 13px; color: var(--text-secondary);">Introduction to Programming</p>
-                            </div>
-                            <span class="badge badge-success">Active</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
-                                <span>8:00 AM - 10:00 AM</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
-                                <span>28/32 students</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="background: var(--bg-primary); border-radius: var(--border-radius-sm); padding: 16px; border-left: 4px solid #3b82f6;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                            <div>
-                                <h4 style="font-weight: 600; margin-bottom: 4px;">Data Structures</h4>
-                                <p style="font-size: 13px; color: var(--text-secondary);">Advanced Topics</p>
-                            </div>
-                            <span class="badge badge-info">Upcoming</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
-                                <span>1:00 PM - 3:00 PM</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
-                                <span>0/30 students</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="background: var(--bg-primary); border-radius: var(--border-radius-sm); padding: 16px; border-left: 4px solid #8b5cf6;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                            <div>
-                                <h4 style="font-weight: 600; margin-bottom: 4px;">Web Development</h4>
-                                <p style="font-size: 13px; color: var(--text-secondary);">Full Stack Development</p>
-                            </div>
-                            <span class="badge badge-info">Upcoming</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--text-secondary);">
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
-                                <span>3:30 PM - 5:30 PM</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 4px;">
-                                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
-                                <span>0/28 students</span>
-                            </div>
-                        </div>
-                    </div>
+                <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <i data-lucide="calendar" style="width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5;"></i>
+                    <p>Class schedule will be displayed here</p>
                 </div>
             </div>
         </div>
@@ -712,31 +560,29 @@ function initEmotionChart() {
     // Main emotion chart
     const ctx = document.getElementById('emotionChart');
     if (ctx) {
-        // Define emotion colors
+        // Define engagement state colors
         const emotionColors = {
-            'Happy': '#10b981',
-            'Neutral': '#6b7280',
-            'Sad': '#3b82f6',
-            'Angry': '#ef4444',
-            'Surprise': '#f59e0b',
-            'Fear': '#8b5cf6',
-            'Disgust': '#ec4899'
+            'Engaged': '#10b981',
+            'Confused': '#f59e0b',
+            'Frustrated': '#ef4444',
+            'Drowsy': '#8b5cf6',
+            'Bored': '#6b7280',
+            'Looking Away': '#3b82f6'
         };
 
         emotionChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'],
+                labels: ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'],
                 datasets: [{
-                    data: [0, 0, 0, 0, 0, 0, 0],
+                    data: [0, 0, 0, 0, 0, 0],
                     backgroundColor: [
-                        emotionColors.Happy,
-                        emotionColors.Neutral,
-                        emotionColors.Sad,
-                        emotionColors.Angry,
-                        emotionColors.Surprise,
-                        emotionColors.Fear,
-                        emotionColors.Disgust
+                        emotionColors.Engaged,
+                        emotionColors.Confused,
+                        emotionColors.Frustrated,
+                        emotionColors.Drowsy,
+                        emotionColors.Bored,
+                        emotionColors['Looking Away']
                     ],
                     borderWidth: 2,
                     borderColor: '#ffffff'
@@ -770,29 +616,27 @@ function initEmotionChart() {
     const ctxMini = document.getElementById('emotionChartMini');
     if (ctxMini) {
         const emotionColors = {
-            'Happy': '#10b981',
-            'Neutral': '#6b7280',
-            'Sad': '#3b82f6',
-            'Angry': '#ef4444',
-            'Surprise': '#f59e0b',
-            'Fear': '#8b5cf6',
-            'Disgust': '#ec4899'
+            'Engaged': '#10b981',
+            'Confused': '#f59e0b',
+            'Frustrated': '#ef4444',
+            'Drowsy': '#8b5cf6',
+            'Bored': '#6b7280',
+            'Looking Away': '#3b82f6'
         };
 
         emotionChartMini = new Chart(ctxMini, {
             type: 'doughnut',
             data: {
-                labels: ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'],
+                labels: ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'],
                 datasets: [{
-                    data: [0, 0, 0, 0, 0, 0, 0],
+                    data: [0, 0, 0, 0, 0, 0],
                     backgroundColor: [
-                        emotionColors.Happy,
-                        emotionColors.Neutral,
-                        emotionColors.Sad,
-                        emotionColors.Angry,
-                        emotionColors.Surprise,
-                        emotionColors.Fear,
-                        emotionColors.Disgust
+                        emotionColors.Engaged,
+                        emotionColors.Confused,
+                        emotionColors.Frustrated,
+                        emotionColors.Drowsy,
+                        emotionColors.Bored,
+                        emotionColors['Looking Away']
                     ],
                     borderWidth: 1,
                     borderColor: '#ffffff'
@@ -821,7 +665,7 @@ function updateEmotionLegend(emotionColors) {
     const legendContainer = document.getElementById('emotionLegend');
     if (!legendContainer) return;
 
-    const emotions = ['Happy', 'Neutral', 'Sad', 'Angry', 'Surprise', 'Fear', 'Disgust'];
+    const emotions = ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'];
     legendContainer.innerHTML = emotions.map(emotion => `
         <div style="display: flex; align-items: center; gap: 6px;">
             <div style="width: 10px; height: 10px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
@@ -834,7 +678,7 @@ function updateEmotionLegendMini(emotionColors) {
     const legendContainer = document.getElementById('emotionLegendMini');
     if (!legendContainer) return;
 
-    const emotions = ['Happy', 'Sad', 'Surprise', 'Angry'];
+    const emotions = ['Engaged', 'Confused', 'Frustrated', 'Drowsy'];
     legendContainer.innerHTML = emotions.map(emotion => `
         <div style="display: flex; align-items: center; gap: 4px;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
@@ -854,13 +698,12 @@ async function fetchEmotionData() {
         if (result.success) {
             const emotionPercentages = result.data.emotion_percentages;
             const emotionData = [
-                emotionPercentages.Happy || 0,
-                emotionPercentages.Neutral || 0,
-                emotionPercentages.Sad || 0,
-                emotionPercentages.Angry || 0,
-                emotionPercentages.Surprise || 0,
-                emotionPercentages.Fear || 0,
-                emotionPercentages.Disgust || 0
+                emotionPercentages.Engaged || 0,
+                emotionPercentages.Confused || 0,
+                emotionPercentages.Frustrated || 0,
+                emotionPercentages.Drowsy || 0,
+                emotionPercentages.Bored || 0,
+                emotionPercentages['Looking Away'] || 0
             ];
             
             // Update main chart
@@ -1330,5 +1173,278 @@ if (!document.getElementById('dashboard-animations-style')) {
         }
     `;
     document.head.appendChild(dashboardAnimationStyle);
+
+// LSTM Prediction Chart
+let lstmPredictionChart = null;
+let lstmPredictionData = {
+    history: [],
+    predictions: []
+};
+
+function initLSTMPredictionChart() {
+    const ctx = document.getElementById('lstmPredictionChart');
+    if (!ctx) return;
+    
+    // Initialize with placeholder data
+    const timeLabels = [];
+    const now = new Date();
+    for (let i = -5; i <= 10; i++) {
+        const time = new Date(now.getTime() + i * 60000); // 1 minute intervals
+        timeLabels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    }
+    
+    lstmPredictionChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: timeLabels,
+            datasets: [
+                {
+                    label: 'Historical Engagement',
+                    data: Array(6).fill(null).concat(Array(10).fill(null)),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Predicted Engagement',
+                    data: Array(6).fill(null).concat(Array(10).fill(null)),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 3,
+                    borderDash: [10, 5],
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Confidence Interval',
+                    data: Array(16).fill(null),
+                    borderColor: 'rgba(245, 158, 11, 0.3)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    tension: 0.4,
+                    fill: '+1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 13
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += context.parsed.y.toFixed(1) + '%';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Engagement Level'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateLSTMPrediction() {
+    if (!lstmPredictionChart) return;
+    
+    // Try to fetch LSTM predictions from API
+    fetch('/api/lstm/predict')
+        .then(response => response.json())
+        .then(result => {
+            if (result.success && result.data) {
+                updateLSTMChartWithAPIData(result.data);
+            } else {
+                // Fallback to simulation
+                updateLSTMChartSimulation();
+            }
+        })
+        .catch(error => {
+            console.log('LSTM API not available, using simulation:', error);
+            updateLSTMChartSimulation();
+        });
+}
+
+function updateLSTMChartWithAPIData(apiData) {
+    if (!lstmPredictionChart) return;
+    
+    const currentEngagement = dashboardData.avgEngagement || 78;
+    
+    // Use API predictions
+    const predictions = apiData.engagement_scores || [];
+    
+    // Generate historical data (last 5 minutes) - could be from API history
+    const history = [];
+    for (let i = 5; i >= 0; i--) {
+        const variance = Math.random() * 10 - 5;
+        history.push(Math.min(100, Math.max(0, currentEngagement + variance)));
+    }
+    
+    // Generate confidence interval (upper bound)
+    const confidence = apiData.confidence || 0.8;
+    const confidenceRange = (1 - confidence) * 15; // Higher uncertainty = wider range
+    const confidenceUpper = predictions.map(v => Math.min(100, v + confidenceRange));
+    
+    // Update chart data
+    const historyData = [...history, ...Array(predictions.length).fill(null)];
+    const predictionData = [...Array(history.length).fill(null), ...predictions];
+    const confidenceData = [...Array(history.length).fill(null), ...confidenceUpper];
+    
+    lstmPredictionChart.data.datasets[0].data = historyData;
+    lstmPredictionChart.data.datasets[1].data = predictionData;
+    lstmPredictionChart.data.datasets[2].data = confidenceData;
+    lstmPredictionChart.update('none');
+    
+    // Update trend indicator
+    const trendEl = document.getElementById('lstmTrend');
+    if (trendEl) {
+        const trend = apiData.trend || 'stable';
+        const trendText = trend.charAt(0).toUpperCase() + trend.slice(1);
+        const trendColor = trend === 'improving' ? '#10b981' : 
+                          trend === 'declining' ? '#ef4444' : '#f59e0b';
+        trendEl.textContent = trendText;
+        trendEl.style.color = trendColor;
+        
+        // Add icon based on trend
+        const parentDiv = trendEl.parentElement;
+        if (parentDiv) {
+            const icon = parentDiv.querySelector('i[data-lucide]');
+            if (icon) {
+                icon.setAttribute('data-lucide', 
+                    trend === 'improving' ? 'trending-up' : 
+                    trend === 'declining' ? 'trending-down' : 'minus');
+                // Refresh lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+    }
+}
+
+function updateLSTMChartSimulation() {
+    if (!lstmPredictionChart) return;
+    
+    // Simulate LSTM prediction (fallback when API is not available)
+    const currentEngagement = dashboardData.avgEngagement || 78;
+    
+    // Generate historical data (last 5 minutes)
+    const history = [];
+    for (let i = 5; i >= 0; i--) {
+        const variance = Math.random() * 10 - 5;
+        history.push(Math.min(100, Math.max(0, currentEngagement + variance)));
+    }
+    
+    // Generate predictions (next 10 minutes) with LSTM-like behavior
+    const predictions = [currentEngagement];
+    let trend = (Math.random() - 0.5) * 2; // Random trend direction
+    
+    for (let i = 1; i <= 10; i++) {
+        // Add momentum and noise
+        trend += (Math.random() - 0.5) * 0.5;
+        trend = Math.max(-2, Math.min(2, trend)); // Limit trend
+        
+        const lastValue = predictions[predictions.length - 1];
+        let nextValue = lastValue + trend;
+        
+        // Mean reversion tendency (LSTM characteristic)
+        const meanReversionFactor = (currentEngagement - nextValue) * 0.1;
+        nextValue += meanReversionFactor;
+        
+        // Add noise
+        nextValue += (Math.random() - 0.5) * 3;
+        
+        // Clamp values
+        nextValue = Math.min(95, Math.max(40, nextValue));
+        predictions.push(nextValue);
+    }
+    
+    // Generate confidence interval (upper bound)
+    const confidenceUpper = predictions.map(v => Math.min(100, v + 8));
+    
+    // Update chart data
+    const historyData = [...history, null, null, null, null, null, null, null, null, null, null];
+    const predictionData = [null, null, null, null, null, null, ...predictions];
+    const confidenceData = [null, null, null, null, null, null, ...confidenceUpper];
+    
+    lstmPredictionChart.data.datasets[0].data = historyData;
+    lstmPredictionChart.data.datasets[1].data = predictionData;
+    lstmPredictionChart.data.datasets[2].data = confidenceData;
+    lstmPredictionChart.update('none');
+    
+    // Update trend indicator
+    const trendEl = document.getElementById('lstmTrend');
+    if (trendEl) {
+        const avgPrediction = predictions.reduce((a, b) => a + b, 0) / predictions.length;
+        const trendDirection = avgPrediction > currentEngagement + 3 ? 'Improving' : 
+                             avgPrediction < currentEngagement - 3 ? 'Declining' : 'Stable';
+        const trendColor = trendDirection === 'Improving' ? '#10b981' : 
+                          trendDirection === 'Declining' ? '#ef4444' : '#f59e0b';
+        trendEl.textContent = trendDirection;
+        trendEl.style.color = trendColor;
+    }
+}
+
 }
 

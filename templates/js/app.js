@@ -94,15 +94,10 @@ function routeTo(page) {
             if (pageSubtitle) pageSubtitle.textContent = 'Welcome back to your smart classroom';
             loadDashboard();
             break;
-        case 'attendance':
-            if (pageTitle) pageTitle.textContent = 'Attendance';
-            if (pageSubtitle) pageSubtitle.textContent = 'Track and manage student attendance';
-            loadAttendance();
-            break;
-        case 'students':
-            if (pageTitle) pageTitle.textContent = 'My Students';
-            if (pageSubtitle) pageSubtitle.textContent = 'View and manage student information';
-            loadStudents();
+        case 'camera':
+            if (pageTitle) pageTitle.textContent = 'Camera Monitor';
+            if (pageSubtitle) pageSubtitle.textContent = 'Real-time AI-powered student engagement monitoring';
+            loadCamera();
             break;
         case 'analytics':
             if (pageTitle) pageTitle.textContent = 'Analytics';
@@ -198,42 +193,196 @@ function handleLogout() {
 }
 
 // Placeholder functions for other pages
-function loadAttendance() {
+function loadCamera() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = `
+        <!-- Full-Width Camera Monitor -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">AI Computer Vision Monitor</h3>
+                    <p class="card-subtitle">Real-time student attention and engagement detection</p>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge" id="cameraStatusBadge" style="background: #6b7280; display: flex; align-items: center; gap: 4px;">
+                        <i data-lucide="video-off" style="width: 12px; height: 12px;"></i>
+                        Offline
+                    </span>
+                    <button class="card-action" id="fullscreenBtn" title="Fullscreen">
+                        <i data-lucide="maximize-2"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Full-Width Camera Feed Container -->
+            <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
+                <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
+                    <i data-lucide="camera" style="width: 64px; height: 64px; color: #6b7280;"></i>
+                    <p style="color: #9ca3af; font-size: 16px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
+                    <button class="btn btn-primary" id="startCameraBtn" style="padding: 12px 24px; font-size: 16px;">
+                        <i data-lucide="play"></i>
+                        Start Camera
+                    </button>
+                </div>
+                <!-- Detection badge (hidden by default) -->
+                <div id="detectionBadge" style="position: absolute; top: 12px; left: 12px; padding: 8px 14px; background: rgba(16, 185, 129, 0.95); color: white; border-radius: 8px; font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 8px; backdrop-filter: blur(8px);">
+                    <i data-lucide="user-check" style="width: 14px; height: 14px;"></i>
+                    <span id="studentsDetectedBadge">0</span> Students Detected
+                </div>
+                <!-- Camera controls (hidden by default) -->
+                <div id="cameraControls" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; gap: 12px; z-index: 10;">
+                    <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 10px 20px;">
+                        <i data-lucide="square" style="width: 16px; height: 16px;"></i>
+                        Stop Camera
+                    </button>
+                </div>
+                <!-- Exit fullscreen button (hidden by default) -->
+                <button id="exitFullscreenBtn" style="position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.8); color: white; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; display: none; z-index: 10; align-items: center; gap: 8px; font-size: 14px; backdrop-filter: blur(8px);">
+                    <i data-lucide="minimize-2" style="width: 16px; height: 16px;"></i>
+                    Exit Fullscreen
+                </button>
+            </div>
+        </div>
+        
+        <!-- Real-time Metrics Grid (Below Camera) -->
+        <div class="dashboard-grid" style="margin-bottom: 24px;">
+            <!-- Attention Level -->
+            <div class="stat-card" style="background: var(--bg-secondary);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 44px; height: 44px; background: rgba(16, 185, 129, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="eye" style="width: 22px; height: 22px; color: #10b981;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Attention Level</p>
+                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);" id="attentionLevel">82%</p>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="attentionProgress" style="width: 82%;"></div>
+                </div>
+            </div>
+            
+            <!-- Engagement Level -->
+            <div class="stat-card" style="background: var(--bg-secondary);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                    <div style="width: 44px; height: 44px; background: rgba(59, 130, 246, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="brain" style="width: 22px; height: 22px; color: #3b82f6;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Engagement</p>
+                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);" id="engagementLevel">78%</p>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="engagementProgress" style="width: 78%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
+                </div>
+            </div>
+            
+            <!-- Students Detected -->
+            <div class="stat-card" style="background: var(--bg-secondary);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; background: rgba(139, 92, 246, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="users" style="width: 22px; height: 22px; color: #8b5cf6;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Students Present</p>
+                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);"><span id="studentsDetectedCount">0</span>/32</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- LSTM Prediction Trend -->
+            <div class="stat-card" style="background: var(--bg-secondary);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 44px; height: 44px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="trending-up" style="width: 22px; height: 22px; color: #f59e0b;"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Predicted Trend</p>
+                        <p style="font-size: 18px; font-weight: 600; color: var(--text-primary);" id="lstmTrend">Stable</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Engagement States Chart -->
+        <div class="dashboard-grid" style="margin-bottom: 24px;">
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Current Engagement States</h3>
+                        <p class="card-subtitle">Real-time distribution</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="emotionChartMini"></canvas>
+                </div>
+                <div id="emotionLegendMini" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; justify-content: center; font-size: 11px;">
+                    <!-- Engagement legend will be populated dynamically -->
+                </div>
+            </div>
+            
+            <!-- LSTM Temporal Prediction Chart -->
+            <div class="card card-half">
+                <div class="card-header">
+                    <div>
+                        <h3 class="card-title">Engagement Forecast</h3>
+                        <p class="card-subtitle">LSTM prediction for next 10 minutes</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="lstmPredictionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detailed Engagement Analysis -->
         <div class="card">
             <div class="card-header">
                 <div>
-                    <h3 class="card-title">Attendance Management</h3>
-                    <p class="card-subtitle">Coming soon...</p>
+                    <h3 class="card-title">Detailed Engagement Analysis</h3>
+                    <p class="card-subtitle">Real-time breakdown of student states</p>
                 </div>
             </div>
-            <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-                <i data-lucide="user-check" style="width: 64px; height: 64px; margin-bottom: 16px;"></i>
-                <p>Attendance tracking feature will be available soon.</p>
+            <div class="chart-container">
+                <canvas id="emotionChart"></canvas>
+            </div>
+            <div id="emotionLegend" style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 20px 20px; justify-content: center;">
+                <!-- Engagement legend will be populated dynamically -->
             </div>
         </div>
     `;
+    
     lucide.createIcons();
-}
-
-function loadStudents() {
-    const mainContent = document.getElementById('mainContent');
-    mainContent.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <div>
-                    <h3 class="card-title">Student Management</h3>
-                    <p class="card-subtitle">Coming soon...</p>
-                </div>
-            </div>
-            <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-                <i data-lucide="users" style="width: 64px; height: 64px; margin-bottom: 16px;"></i>
-                <p>Student management feature will be available soon.</p>
-            </div>
-        </div>
-    `;
-    lucide.createIcons();
+    
+    // Initialize charts and camera controls
+    initEmotionChart();
+    initLSTMPredictionChart();
+    initCameraButton();
+    initFullscreenButton();
+    
+    // Fetch initial data
+    fetchDashboardStats();
+    
+    // Update stats every 3 seconds
+    setInterval(fetchDashboardStats, 3000);
+    
+    // Update emotion data and LSTM predictions every 2 seconds when camera is active
+    setInterval(() => {
+        if (cameraActive) {
+            fetchEmotionData();
+            updateLSTMPrediction();
+            // Update student count
+            const count = document.getElementById('studentsDetectedCount');
+            const badge = document.getElementById('studentsDetectedBadge');
+            if (count && dashboardData.studentsDetected !== undefined) {
+                count.textContent = dashboardData.studentsDetected;
+            }
+            if (badge && dashboardData.studentsDetected !== undefined) {
+                badge.textContent = dashboardData.studentsDetected;
+            }
+        }
+    }, 2000);
 }
 
 function loadAnalytics() {
@@ -689,10 +838,10 @@ function initAnalyticsEmotionChart() {
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Happy', 'Neutral', 'Focused', 'Confused', 'Bored'],
+            labels: ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'],
             datasets: [{
-                data: [35, 30, 20, 10, 5],
-                backgroundColor: ['#10b981', '#6b7280', '#3b82f6', '#f59e0b', '#ef4444'],
+                data: [45, 20, 10, 8, 7, 10],
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280', '#3b82f6'],
                 borderWidth: 2,
                 borderColor: '#ffffff'
             }]
