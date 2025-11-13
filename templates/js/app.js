@@ -417,10 +417,10 @@ function loadAnalytics() {
                         <i data-lucide="activity"></i>
                     </div>
                 </div>
-                <div class="stat-value" id="analyticsAvgEngagement">76.3<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
-                <div class="stat-change positive">
-                    <i data-lucide="trending-up"></i>
-                    <span>+8.2% from previous period</span>
+                <div class="stat-value" id="analyticsAvgEngagement">0<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
+                <div class="stat-change neutral">
+                    <i data-lucide="info"></i>
+                    <span>Start camera for data</span>
                 </div>
             </div>
 
@@ -431,10 +431,10 @@ function loadAnalytics() {
                         <i data-lucide="users"></i>
                     </div>
                 </div>
-                <div class="stat-value" id="analyticsAvgAttendance">86.5<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
-                <div class="stat-change positive">
-                    <i data-lucide="trending-up"></i>
-                    <span>+2.3% from previous period</span>
+                <div class="stat-value" id="analyticsAvgAttendance">0<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
+                <div class="stat-change neutral">
+                    <i data-lucide="info"></i>
+                    <span>Start camera for data</span>
                 </div>
             </div>
 
@@ -445,10 +445,10 @@ function loadAnalytics() {
                         <i data-lucide="calendar"></i>
                     </div>
                 </div>
-                <div class="stat-value" id="analyticsTotalSessions">24</div>
+                <div class="stat-value" id="analyticsTotalSessions">0</div>
                 <div class="stat-change neutral">
-                    <i data-lucide="minus"></i>
-                    <span>Same as previous period</span>
+                    <i data-lucide="info"></i>
+                    <span>No sessions recorded</span>
                 </div>
             </div>
 
@@ -459,10 +459,10 @@ function loadAnalytics() {
                         <i data-lucide="clock"></i>
                     </div>
                 </div>
-                <div class="stat-value" style="font-size: 28px;" id="analyticsPeakTime">10:00 AM</div>
-                <div class="stat-change positive">
-                    <i data-lucide="star"></i>
-                    <span>Most productive hour</span>
+                <div class="stat-value" style="font-size: 28px;" id="analyticsPeakTime">N/A</div>
+                <div class="stat-change neutral">
+                    <i data-lucide="info"></i>
+                    <span>Calculating...</span>
                 </div>
             </div>
         </div>
@@ -575,153 +575,224 @@ function loadAnalytics() {
 }
 
 // Initialize Analytics
-function initAnalytics() {
-    // Generate analytics data
-    const analyticsData = generateAnalyticsData(30);
-    
-    // Initialize all charts
-    initAnalyticsEngagementChart(analyticsData);
-    initAnalyticsAttendanceChart(analyticsData);
-    initAnalyticsEmotionChart();
-    initAnalyticsHourlyChart();
-    initAnalyticsWeeklyChart();
-    
-    // Populate table
-    populateAnalyticsTable(analyticsData);
-    
-    // Add event listeners
-    const dateRangeSelect = document.getElementById('analyticsDateRange');
-    if (dateRangeSelect) {
-        dateRangeSelect.addEventListener('change', (e) => {
-            const days = parseInt(e.target.value);
-            const newData = generateAnalyticsData(days);
-            updateAnalyticsCharts(newData);
-            populateAnalyticsTable(newData);
-        });
-    }
-    
-    const exportBtn = document.getElementById('exportAnalyticsBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => exportAnalyticsCSV(analyticsData));
-    }
-    
-    const exportTableBtn = document.getElementById('exportTableBtn');
-    if (exportTableBtn) {
-        exportTableBtn.addEventListener('click', () => exportAnalyticsCSV(analyticsData));
+async function initAnalytics() {
+    try {
+        // Fetch real analytics summary
+        const summaryResponse = await fetch('/api/analytics/summary');
+        const summary = await summaryResponse.json();
+        
+        // Update stat cards with real data
+        updateAnalyticsStats(summary);
+        
+        // Fetch engagement trends
+        const days = parseInt(document.getElementById('analyticsDateRange')?.value || 30);
+        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
+        const trendsData = await trendsResponse.json();
+        
+        // Initialize all charts with real data
+        initAnalyticsEngagementChart(trendsData.data);
+        initAnalyticsAttendanceChart(trendsData.data);
+        initAnalyticsEmotionChart(summary.emotionDistribution);
+        initAnalyticsHourlyChart();
+        initAnalyticsWeeklyChart();
+        
+        // Populate table
+        await populateAnalyticsTable(days);
+        
+        // Add event listeners
+        const dateRangeSelect = document.getElementById('analyticsDateRange');
+        if (dateRangeSelect) {
+            dateRangeSelect.addEventListener('change', async (e) => {
+                const newDays = parseInt(e.target.value);
+                await refreshAnalytics(newDays);
+            });
+        }
+        
+        const exportBtn = document.getElementById('exportAnalyticsBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => exportAnalyticsCSV(days));
+        }
+        
+        const exportTableBtn = document.getElementById('exportTableBtn');
+        if (exportTableBtn) {
+            exportTableBtn.addEventListener('click', () => exportAnalyticsCSV(days));
+        }
+        
+        // Auto-refresh every 5 seconds
+        setInterval(async () => {
+            const summaryResponse = await fetch('/api/analytics/summary');
+            const summary = await summaryResponse.json();
+            updateAnalyticsStats(summary);
+        }, 5000);
+        
+    } catch (error) {
+        console.error('Error initializing analytics:', error);
+        showNotification('Failed to load analytics data', 'error');
     }
 }
 
-// Generate Analytics Data
-function generateAnalyticsData(days) {
-    const data = [];
-    const today = new Date();
+// Update analytics stats cards
+function updateAnalyticsStats(summary) {
+    const avgEngagementEl = document.getElementById('analyticsAvgEngagement');
+    const avgAttendanceEl = document.getElementById('analyticsAvgAttendance');
+    const totalSessionsEl = document.getElementById('analyticsTotalSessions');
+    const peakTimeEl = document.getElementById('analyticsPeakTime');
     
-    for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        
-        // Skip weekends for more realistic data
-        if (date.getDay() === 0 || date.getDay() === 6) {
-            continue;
-        }
-        
-        const sessionTime = date.getHours() >= 12 ? 'PM' : 'AM';
-        const baseEngagement = 70 + Math.random() * 20;
-        const baseAttendance = 25 + Math.floor(Math.random() * 7);
-        
-        data.push({
-            date: date.toISOString().split('T')[0],
-            dateObj: date,
-            session: `${date.getHours() >= 12 ? date.getHours() - 12 : date.getHours()}:00 ${sessionTime} - CS101`,
-            students: baseAttendance,
-            attendance: Math.round((baseAttendance / 32) * 100),
-            engagement: Math.round(baseEngagement),
-            attention: Math.round(baseEngagement + (Math.random() * 10 - 5)),
-            status: baseEngagement > 75 ? 'Excellent' : baseEngagement > 60 ? 'Good' : 'Needs Attention'
-        });
+    if (avgEngagementEl) {
+        avgEngagementEl.innerHTML = `${summary.avgEngagement || 0}<span style="font-size: 20px; color: var(--text-secondary);">%</span>`;
     }
-    
-    return data;
+    if (avgAttendanceEl) {
+        avgAttendanceEl.innerHTML = `${summary.avgAttendance || 0}<span style="font-size: 20px; color: var(--text-secondary);">%</span>`;
+    }
+    if (totalSessionsEl) {
+        totalSessionsEl.textContent = summary.totalSessions || 0;
+    }
+    if (peakTimeEl) {
+        peakTimeEl.textContent = summary.peakTime || 'N/A';
+    }
+}
+
+// Refresh analytics with new date range
+async function refreshAnalytics(days) {
+    try {
+        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
+        const trendsData = await trendsResponse.json();
+        
+        // Update charts
+        updateAnalyticsCharts(trendsData.data);
+        
+        // Update table
+        await populateAnalyticsTable(days);
+    } catch (error) {
+        console.error('Error refreshing analytics:', error);
+    }
 }
 
 // Export Analytics as CSV
-function exportAnalyticsCSV(data) {
-    // Create CSV header
-    const headers = ['Date', 'Session', 'Students Present', 'Attendance %', 'Engagement %', 'Attention %', 'Status'];
-    
-    // Create CSV rows
-    const rows = data.map(row => [
-        row.date,
-        row.session,
-        row.students,
-        row.attendance,
-        row.engagement,
-        row.attention,
-        row.status
-    ]);
-    
-    // Combine headers and rows
-    const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-    ].join('\n');
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    const dateStr = new Date().toISOString().split('T')[0];
-    link.setAttribute('href', url);
-    link.setAttribute('download', `smart_classroom_analytics_${dateStr}.csv`);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Show success notification
-    showNotification('Analytics data exported successfully!', 'success');
+async function exportAnalyticsCSV(days) {
+    try {
+        const response = await fetch(`/api/analytics/export?days=${days}`);
+        const result = await response.json();
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+            showNotification('No data available to export', 'warning');
+            return;
+        }
+        
+        // Create CSV header
+        const headers = ['Date', 'Session', 'Students Present', 'Attendance %', 'Engagement %', 'Attention %', 'Status'];
+        
+        // Create CSV rows
+        const rows = result.data.map(row => [
+            row.date,
+            row.session,
+            row.students,
+            row.attendance_percent,
+            row.engagement,
+            row.attention,
+            row.status
+        ]);
+        
+        // Combine headers and rows
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+        
+        // Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        const dateStr = new Date().toISOString().split('T')[0];
+        link.setAttribute('href', url);
+        link.setAttribute('download', `smart_classroom_analytics_${dateStr}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('Analytics data exported successfully!', 'success');
+    } catch (error) {
+        console.error('Error exporting analytics:', error);
+        showNotification('Failed to export analytics data', 'error');
+    }
 }
 
 // Populate Analytics Table
-function populateAnalyticsTable(data) {
+async function populateAnalyticsTable(days) {
     const tbody = document.getElementById('analyticsTableBody');
     if (!tbody) return;
     
-    tbody.innerHTML = data.map(row => `
-        <tr style="border-bottom: 1px solid var(--border-color);">
-            <td style="padding: 12px; font-size: 14px;">${new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-            <td style="padding: 12px; font-size: 14px;">${row.session}</td>
-            <td style="padding: 12px; text-align: center; font-size: 14px; font-weight: 600;">${row.students}/32</td>
-            <td style="padding: 12px; text-align: center; font-size: 14px;">
-                <span class="badge" style="background: ${row.attendance >= 80 ? '#10b981' : row.attendance >= 60 ? '#f59e0b' : '#ef4444'};">
-                    ${row.attendance}%
-                </span>
-            </td>
-            <td style="padding: 12px; text-align: center; font-size: 14px;">
-                <span class="badge" style="background: ${row.engagement >= 75 ? '#10b981' : row.engagement >= 60 ? '#f59e0b' : '#ef4444'};">
-                    ${row.engagement}%
-                </span>
-            </td>
-            <td style="padding: 12px; text-align: center; font-size: 14px;">
-                <span class="badge" style="background: ${row.attention >= 75 ? '#10b981' : row.attention >= 60 ? '#f59e0b' : '#ef4444'};">
-                    ${row.attention}%
-                </span>
-            </td>
-            <td style="padding: 12px; font-size: 14px;">
-                <span style="color: ${row.status === 'Excellent' ? '#10b981' : row.status === 'Good' ? '#f59e0b' : '#ef4444'}; font-weight: 600;">
-                    ${row.status}
-                </span>
-            </td>
-        </tr>
-    `).join('');
+    try {
+        const response = await fetch(`/api/analytics/export?days=${days}`);
+        const result = await response.json();
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                        <i data-lucide="info" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                        <p>No analytics data available yet. Start the camera to collect data.</p>
+                    </td>
+                </tr>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        tbody.innerHTML = result.data.map(row => {
+            const students = row.students;
+            const attendance = row.attendance_percent;
+            const engagement = row.engagement;
+            const attention = row.attention;
+            
+            return `
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 12px; font-size: 14px;">${new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                    <td style="padding: 12px; font-size: 14px;">${row.session}</td>
+                    <td style="padding: 12px; text-align: center; font-size: 14px; font-weight: 600;">${students !== 'N/A' ? students + '/32' : 'N/A'}</td>
+                    <td style="padding: 12px; text-align: center; font-size: 14px;">
+                        ${attendance !== 'N/A' ? `<span class="badge" style="background: ${attendance >= 80 ? '#10b981' : attendance >= 60 ? '#f59e0b' : '#ef4444'};">${attendance}%</span>` : 'N/A'}
+                    </td>
+                    <td style="padding: 12px; text-align: center; font-size: 14px;">
+                        ${engagement !== 'N/A' ? `<span class="badge" style="background: ${engagement >= 75 ? '#10b981' : engagement >= 60 ? '#f59e0b' : '#ef4444'};">${engagement}%</span>` : 'N/A'}
+                    </td>
+                    <td style="padding: 12px; text-align: center; font-size: 14px;">
+                        ${attention !== 'N/A' ? `<span class="badge" style="background: ${attention >= 75 ? '#10b981' : attention >= 60 ? '#f59e0b' : '#ef4444'};">${attention}%</span>` : 'N/A'}
+                    </td>
+                    <td style="padding: 12px; font-size: 14px;">
+                        <span style="color: ${row.status === 'Excellent' ? '#10b981' : row.status === 'Good' ? '#f59e0b' : row.status === 'Needs Attention' ? '#ef4444' : 'var(--text-secondary)'}; font-weight: 600;">
+                            ${row.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        lucide.createIcons();
+    } catch (error) {
+        console.error('Error populating table:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="padding: 40px; text-align: center; color: #ef4444;">
+                    <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
+                    <p>Error loading analytics data</p>
+                </td>
+            </tr>
+        `;
+        lucide.createIcons();
+    }
 }
 
 // Initialize Analytics Charts
 function initAnalyticsEngagementChart(data) {
     const ctx = document.getElementById('analyticsEngagementChart');
     if (!ctx) return;
+    
+    // Check if we have real data
+    const hasData = data.some(d => d.avgEngagement > 0);
 
     new Chart(ctx, {
         type: 'line',
@@ -730,7 +801,7 @@ function initAnalyticsEngagementChart(data) {
             datasets: [
                 {
                     label: 'Engagement',
-                    data: data.map(d => d.engagement),
+                    data: data.map(d => d.avgEngagement || 0),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
@@ -738,10 +809,19 @@ function initAnalyticsEngagementChart(data) {
                     borderWidth: 3
                 },
                 {
-                    label: 'Attention',
-                    data: data.map(d => d.attention),
+                    label: 'Highly Engaged',
+                    data: data.map(d => d.highlyEngaged || 0),
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 3
+                },
+                {
+                    label: 'Disengaged',
+                    data: data.map(d => d.disengaged || 0),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     tension: 0.4,
                     fill: true,
                     borderWidth: 3
@@ -760,8 +840,14 @@ function initAnalyticsEngagementChart(data) {
                     }
                 },
                 tooltip: {
+                    enabled: hasData,
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return hasData ? `${context.dataset.label}: ${context.parsed.y}%` : 'No data';
+                        }
+                    }
                 }
             },
             scales: {
@@ -773,7 +859,7 @@ function initAnalyticsEngagementChart(data) {
                     },
                     ticks: {
                         callback: function(value) {
-                            return value + '%';
+                            return hasData ? value + '%' : '';
                         }
                     }
                 },
@@ -790,14 +876,22 @@ function initAnalyticsEngagementChart(data) {
 function initAnalyticsAttendanceChart(data) {
     const ctx = document.getElementById('analyticsAttendanceChart');
     if (!ctx) return;
+    
+    // Extract student counts and filter out zero values for display
+    const studentData = data.map(d => ({
+        date: d.date,
+        students: d.highlyEngaged || 0  // Use highlyEngaged from API or 0
+    }));
+    
+    const hasData = studentData.some(d => d.students > 0);
 
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+            labels: studentData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
             datasets: [{
                 label: 'Students Present',
-                data: data.map(d => d.students),
+                data: studentData.map(d => d.students),
                 borderColor: '#3b82f6',
                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                 tension: 0.4,
@@ -811,6 +905,14 @@ function initAnalyticsAttendanceChart(data) {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    enabled: hasData,
+                    callbacks: {
+                        label: function(context) {
+                            return hasData ? `Students: ${context.parsed.y}` : 'No data';
+                        }
+                    }
                 }
             },
             scales: {
@@ -819,6 +921,11 @@ function initAnalyticsAttendanceChart(data) {
                     max: 35,
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return hasData ? value : '';
+                        }
                     }
                 },
                 x: {
@@ -831,16 +938,30 @@ function initAnalyticsAttendanceChart(data) {
     });
 }
 
-function initAnalyticsEmotionChart() {
+function initAnalyticsEmotionChart(emotionData = {}) {
     const ctx = document.getElementById('analyticsEmotionChart');
     if (!ctx) return;
 
+    // Use real emotion data or defaults
+    const labels = ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'];
+    const data = [
+        emotionData.Engaged || 0,
+        emotionData.Confused || 0,
+        emotionData.Frustrated || 0,
+        emotionData.Drowsy || 0,
+        emotionData.Bored || 0,
+        emotionData['Looking Away'] || 0
+    ];
+    
+    // Check if all values are zero
+    const hasData = data.some(val => val > 0);
+    
     new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'],
+            labels: labels,
             datasets: [{
-                data: [45, 20, 10, 8, 7, 10],
+                data: hasData ? data : [1, 1, 1, 1, 1, 1], // Show equal distribution if no data
                 backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280', '#3b82f6'],
                 borderWidth: 2,
                 borderColor: '#ffffff'
@@ -851,7 +972,33 @@ function initAnalyticsEmotionChart() {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'bottom'
+                    position: 'bottom',
+                    labels: {
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const value = hasData ? data.datasets[0].data[i] : 0;
+                                    const displayValue = hasData ? `${Math.round(value)}%` : 'N/A';
+                                    return {
+                                        text: `${label}: ${displayValue}`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
+                    }
+                },
+                tooltip: {
+                    enabled: hasData,
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${Math.round(context.parsed)}%`;
+                        }
+                    }
                 }
             }
         }

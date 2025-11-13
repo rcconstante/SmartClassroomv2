@@ -306,19 +306,6 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Class Schedule -->
-            <div class="card card-full">
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">Today's Schedule</h3>
-                        <p class="card-subtitle">October 13, 2025</p>
-                    </div>
-                </div>
-                <div style="padding: 40px; text-align: center; color: var(--text-secondary);">
-                    <i data-lucide="calendar" style="width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.5;"></i>
-                    <p>Class schedule will be displayed here</p>
-                </div>
-            </div>
         </div>
     `;
 

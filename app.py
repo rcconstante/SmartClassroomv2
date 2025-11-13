@@ -464,19 +464,30 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends over time"""
+    """Get engagement trends over time - Real data from current session"""
     days = request.args.get('days', default=7, type=int)
+    
+    # Get current engagement stats
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    
+    # Get emotion data
+    emotion_data = current_emotion_stats.get('emotion_percentages', {})
+    engaged_pct = emotion_data.get('Engaged', 0)
+    disengaged_pct = (emotion_data.get('Bored', 0) + 
+                      emotion_data.get('Looking Away', 0) + 
+                      emotion_data.get('Drowsy', 0))
     
     trends = {
         'period': f'Last {days} days',
         'data': [
             {
                 'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
-                'avgEngagement': random.randint(65, 85),
-                'highlyEngaged': random.randint(15, 25),
-                'disengaged': random.randint(2, 8)
+                'avgEngagement': current_engagement if i == 0 else 0,
+                'highlyEngaged': round(engaged_pct) if i == 0 else 0,
+                'disengaged': round(disengaged_pct) if i == 0 else 0
             }
-            for i in range(days, 0, -1)
+            for i in range(days - 1, -1, -1)
         ]
     }
     return jsonify(trends), 200
@@ -484,11 +495,14 @@ def get_engagement_trends():
 
 @app.route('/api/analytics/attendance-report', methods=['GET'])
 def get_attendance_report():
-    """Get detailed attendance report"""
-    month = request.args.get('month', default=datetime.now().month, type=int)
+    """Get detailed attendance report - Real data from current session"""
     days = request.args.get('days', default=30, type=int)
     
-    # Generate report data
+    # Get current data
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    total_capacity = classroom_data['current_stats'].get('totalStudents', 32)
+    
+    # Generate report data - only today has real data
     report_data = []
     today = datetime.now()
     
@@ -497,19 +511,30 @@ def get_attendance_report():
         # Skip weekends
         if date.weekday() >= 5:
             continue
+        
+        if i == 0:  # Today - use real data
+            present = current_students
+            percentage = round((present / total_capacity * 100), 1) if total_capacity > 0 else 0
+        else:  # Past days - no data
+            present = 0
+            percentage = 0
             
         report_data.append({
             'date': date.strftime('%Y-%m-%d'),
-            'present': random.randint(25, 32),
-            'absent': random.randint(0, 7),
-            'total': 32,
-            'percentage': round(random.uniform(78, 100), 1)
+            'present': present,
+            'absent': total_capacity - present if i == 0 else 0,
+            'total': total_capacity,
+            'percentage': percentage
         })
+    
+    # Calculate average only from days with data
+    days_with_data = [d for d in report_data if d['present'] > 0]
+    avg_attendance = round(sum(d['percentage'] for d in days_with_data) / len(days_with_data), 1) if days_with_data else 0
     
     report = {
         'period': f'Last {days} days',
-        'totalClasses': len(report_data),
-        'avgAttendance': round(sum(d['percentage'] for d in report_data) / len(report_data), 1) if report_data else 0,
+        'totalClasses': len([d for d in report_data if d['present'] > 0]),
+        'avgAttendance': avg_attendance,
         'dailyData': report_data
     }
     return jsonify(report), 200
@@ -517,10 +542,16 @@ def get_attendance_report():
 
 @app.route('/api/analytics/export', methods=['GET'])
 def export_analytics():
-    """Export analytics data as CSV"""
+    """Export analytics data as CSV - Real data from current session"""
     days = request.args.get('days', default=30, type=int)
     
-    # Generate analytics data
+    # Get current data
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    current_attention = classroom_data['current_stats'].get('attentionLevel', 0)
+    total_capacity = classroom_data['current_stats'].get('totalStudents', 32)
+    
+    # Generate analytics data - only today has real data
     analytics_data = []
     today = datetime.now()
     
@@ -530,17 +561,29 @@ def export_analytics():
         if date.weekday() >= 5:
             continue
         
-        engagement = random.randint(65, 90)
-        attendance = random.randint(25, 32)
+        if i == 0:  # Today - use real data
+            students = current_students
+            engagement = current_engagement
+            attention = current_attention
+            attendance_pct = round((students / total_capacity * 100), 1) if total_capacity > 0 else 0
+        else:  # Past days - no data
+            students = 0
+            engagement = 0
+            attention = 0
+            attendance_pct = 0
+        
+        status = 'N/A'
+        if engagement > 0:
+            status = 'Excellent' if engagement > 75 else 'Good' if engagement > 60 else 'Needs Attention'
         
         analytics_data.append({
             'date': date.strftime('%Y-%m-%d'),
-            'session': f"{date.hour}:00 {'PM' if date.hour >= 12 else 'AM'} - CS101",
-            'students': attendance,
-            'attendance_percent': round((attendance / 32) * 100, 1),
-            'engagement': engagement,
-            'attention': engagement + random.randint(-5, 5),
-            'status': 'Excellent' if engagement > 75 else 'Good' if engagement > 60 else 'Needs Attention'
+            'session': f"{date.strftime('%I:%M %p')} - Current Session",
+            'students': students if students > 0 else 'N/A',
+            'attendance_percent': attendance_pct if students > 0 else 'N/A',
+            'engagement': engagement if engagement > 0 else 'N/A',
+            'attention': attention if attention > 0 else 'N/A',
+            'status': status
         })
     
     return jsonify({
@@ -548,6 +591,49 @@ def export_analytics():
         'data': analytics_data,
         'generated_at': datetime.now().isoformat()
     }), 200
+
+
+@app.route('/api/analytics/summary', methods=['GET'])
+def get_analytics_summary():
+    """Get analytics summary with real-time data"""
+    # Get current stats
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    current_attention = classroom_data['current_stats'].get('attentionLevel', 0)
+    total_capacity = classroom_data['current_stats'].get('totalStudents', 32)
+    
+    # Get emotion percentages
+    emotion_data = current_emotion_stats.get('emotion_percentages', {})
+    
+    # Calculate attendance percentage
+    attendance_pct = round((current_students / total_capacity * 100), 1) if total_capacity > 0 and current_students > 0 else 0
+    
+    # Determine peak engagement time (current hour if engaged, else N/A)
+    peak_time = 'N/A'
+    if current_engagement > 0:
+        current_hour = datetime.now().hour
+        peak_time = f"{current_hour % 12 or 12}:00 {'PM' if current_hour >= 12 else 'AM'}"
+    
+    summary = {
+        'avgEngagement': current_engagement if current_engagement > 0 else 0,
+        'avgAttendance': attendance_pct,
+        'totalSessions': 1 if current_students > 0 else 0,
+        'peakTime': peak_time,
+        'emotionDistribution': emotion_data,
+        'currentStats': {
+            'studentsDetected': current_students,
+            'totalCapacity': total_capacity,
+            'attentionLevel': current_attention,
+            'confused': emotion_data.get('Confused', 0),
+            'frustrated': emotion_data.get('Frustrated', 0),
+            'drowsy': emotion_data.get('Drowsy', 0),
+            'bored': emotion_data.get('Bored', 0),
+            'lookingAway': emotion_data.get('Looking Away', 0),
+            'engaged': emotion_data.get('Engaged', 0)
+        }
+    }
+    
+    return jsonify(summary), 200
 
 
 # =========================
