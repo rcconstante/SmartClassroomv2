@@ -247,63 +247,6 @@ function loadCamera() {
         <!-- Real-time Metrics Grid (Below Camera) -->
         <div class="dashboard-grid" style="margin-bottom: 24px;">
             <!-- Attention Level -->
-            <div class="stat-card" style="background: var(--bg-secondary);">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-                    <div style="width: 44px; height: 44px; background: rgba(16, 185, 129, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                        <i data-lucide="eye" style="width: 22px; height: 22px; color: #10b981;"></i>
-                    </div>
-                    <div>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Attention Level</p>
-                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);" id="attentionLevel">82%</p>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="attentionProgress" style="width: 82%;"></div>
-                </div>
-            </div>
-            
-            <!-- Engagement Level -->
-            <div class="stat-card" style="background: var(--bg-secondary);">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-                    <div style="width: 44px; height: 44px; background: rgba(59, 130, 246, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                        <i data-lucide="brain" style="width: 22px; height: 22px; color: #3b82f6;"></i>
-                    </div>
-                    <div>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Engagement</p>
-                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);" id="engagementLevel">78%</p>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="engagementProgress" style="width: 78%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
-                </div>
-            </div>
-            
-            <!-- Students Detected -->
-            <div class="stat-card" style="background: var(--bg-secondary);">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 44px; height: 44px; background: rgba(139, 92, 246, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                        <i data-lucide="users" style="width: 22px; height: 22px; color: #8b5cf6;"></i>
-                    </div>
-                    <div>
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Students Present</p>
-                        <p style="font-size: 28px; font-weight: 700; color: var(--text-primary);"><span id="studentsDetectedCount">0</span>/32</p>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- LSTM Prediction Trend -->
-            <div class="stat-card" style="background: var(--bg-secondary);">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 44px; height: 44px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                        <i data-lucide="trending-up" style="width: 22px; height: 22px; color: #f59e0b;"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Predicted Trend</p>
-                        <p style="font-size: 18px; font-weight: 600; color: var(--text-primary);" id="lstmTrend">Stable</p>
-                    </div>
-                </div>
-            </div>
-        </div>
         
         <!-- Engagement States Chart -->
         <div class="dashboard-grid" style="margin-bottom: 24px;">
