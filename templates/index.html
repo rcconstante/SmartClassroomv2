@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLSUD Smart Classroom</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <img src="/static/images/dlsudlogo.png" alt="DLSUD Logo" style="width: 100%; height: 100%; object-fit: contain;">
+                    </div>
+                    <span class="brand-text">DLSUD Smart</span>
+                </div>
+            </div>
+
+            <!-- User Profile -->
+            <div class="sidebar-profile">
+                <div class="profile-avatar">
+                    <span>DJ</span>
+                </div>
+                <div class="profile-info">
+                    <h3 class="profile-name">Dr. Johnson</h3>
+                    <p class="profile-role">Teacher</p>
+                </div>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="camera">
+                    <i data-lucide="video"></i>
+                    <span>Camera Monitor</span>
+                </a>
+                <a href="#" class="nav-item" data-page="analytics">
+                    <i data-lucide="bar-chart-3"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i data-lucide="settings"></i>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="nav-item" data-page="help">
+                    <i data-lucide="help-circle"></i>
+                    <span>Help</span>
+                </a>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <a href="#" class="footer-link" id="logoutBtn">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="content-header">
+                <div class="header-left">
+                    <h1 class="page-title">Hi, Dr. Johnson!</h1>
+                    <p class="page-subtitle">Welcome back to your smart classroom</p>
+                </div>
+                <div class="header-right">
+                    <button class="icon-button" title="Notifications">
+                        <i data-lucide="bell"></i>
+                        <span class="notification-badge">3</span>
+                    </button>
+                    <button class="icon-button" id="darkModeToggle" title="Toggle Dark Mode">
+                        <i data-lucide="moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard Content -->
+            <div id="mainContent" class="content-body">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/dashboard.js"></script>
+    <script src="/js/settings.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
