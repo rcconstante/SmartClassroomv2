@@ -337,14 +337,23 @@ class IoTSensorReader:
     def read_sensors(self):
         """Background thread to continuously read sensor data"""
         print("[IoT] Starting sensor reading thread...")
+        print("[IoT] Waiting for data from Arduino...")
         
         last_db_write = time.time()
+        last_debug_print = time.time()
         db_interval = 5  # Write to database every 5 seconds
+        debug_interval = 10  # Print debug info every 10 seconds
         
         while self.is_reading:
             try:
                 if self.serial_connection and self.serial_connection.in_waiting > 0:
                     line = self.serial_connection.readline().decode('utf-8', errors='ignore')
+                    
+                    # Debug: Print raw line occasionally
+                    current_time = time.time()
+                    if current_time - last_debug_print >= debug_interval:
+                        print(f"[IoT] Raw data sample: {line.strip()}")
+                        last_debug_print = current_time
                     
                     # Parse sensor data
                     result = self.parse_sensor_line(line)
@@ -362,6 +371,11 @@ class IoTSensorReader:
                         # Calculate environmental score
                         env_score = self.calculate_environmental_score()
                         self.current_data['environmental_score'] = env_score
+                        
+                        # Debug: Print first successful data read
+                        if not hasattr(self, '_first_data_received'):
+                            print(f"[IoT] ✓ First data received: {sensor_name} = {value}")
+                            self._first_data_received = True
                         
                         # Add to queue for processing
                         try:

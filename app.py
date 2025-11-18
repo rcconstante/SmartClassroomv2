@@ -932,13 +932,13 @@ if CAMERA_SYSTEM_AVAILABLE and LSTMPredictor:
 
 # Initialize IoT sensors (optional - won't fail if not available)
 if CAMERA_SYSTEM_AVAILABLE and initialize_iot:
-    # Try to initialize IoT sensors
-    # You can specify port here, or it will auto-detect
-    # Example: initialize_iot(port='COM3')  # Windows
-    # Example: initialize_iot(port='/dev/ttyUSB0')  # Linux
-    iot_enabled = initialize_iot()  # Auto-detect
+    # Try to initialize IoT sensors on COM5
+    print("[IoT] Attempting to connect to Arduino on COM5...")
+    iot_enabled = initialize_iot(port='COM5')  # Explicitly use COM5
     if not iot_enabled:
         print("ℹ IoT sensors not connected (system will work without them)")
+        print("ℹ Make sure Arduino IDE Serial Monitor is CLOSED")
+        print("ℹ If Arduino is on different port, edit app.py line 937")
 
 @app.route('/api/camera/detect', methods=['GET'])
 def detect_cameras():
