@@ -262,25 +262,12 @@ function loadCamera() {
                 </div>
             </div>
             
-            <!-- Engagement Forecast -->
-            <div class="card card-half">
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">Engagement Forecast</h3>
-                        <p class="card-subtitle">LSTM prediction for next 10 minutes</p>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="lstmPredictionChart"></canvas>
-                </div>
-            </div>
         </div>
     `;
     
     lucide.createIcons();
     
-    // Initialize charts and camera controls
-    initLSTMPredictionChart();
+    // Initialize camera controls
     initCameraButton();
     initFullscreenButton();
     
@@ -289,24 +276,6 @@ function loadCamera() {
     
     // Update stats every 5 seconds
     setInterval(fetchDashboardStats, 5000);
-    
-    // Update LSTM predictions every 2 seconds when camera is active
-    setInterval(() => {
-        // Check both local variable and localStorage for camera state
-        const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
-        if (isCameraActive) {
-            updateLSTMPrediction();
-            // Update student count
-            const count = document.getElementById('studentsDetectedCount');
-            const badge = document.getElementById('studentsDetectedBadge');
-            if (count && dashboardData.studentsDetected !== undefined) {
-                count.textContent = dashboardData.studentsDetected;
-            }
-            if (badge && dashboardData.studentsDetected !== undefined) {
-                badge.textContent = dashboardData.studentsDetected;
-            }
-        }
-    }, 2000);
 }
 
 function loadAnalytics() {

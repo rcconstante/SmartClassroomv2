@@ -891,7 +891,6 @@ def get_alerts():
 try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
-    from camera_system.ml_models import LSTMPredictor
     from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
     CAMERA_SYSTEM_AVAILABLE = True
     print("✓ Camera system loaded successfully")
@@ -901,7 +900,6 @@ except ImportError as e:
     CameraDetector = None
     CameraStream = None
     EmotionDetector = None
-    LSTMPredictor = None
     initialize_iot = None
     get_iot_data = None
     get_iot_status = None
@@ -910,7 +908,6 @@ except ImportError as e:
 # Global camera stream instance and emotion detector
 active_camera_stream = None
 emotion_detector = None
-lstm_predictor = None
 iot_enabled = False
 current_emotion_stats = {
     'total_faces': 0,
@@ -918,15 +915,6 @@ current_emotion_stats = {
     'emotion_percentages': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
     'engagement': 0
 }
-
-# Initialize LSTM predictor
-if CAMERA_SYSTEM_AVAILABLE and LSTMPredictor:
-    lstm_predictor = LSTMPredictor()
-    # Try to load trained model (optional)
-    model_path = os.path.join('static', 'model', 'lstm_classroom_model.h5')
-    if os.path.exists(model_path):
-        lstm_predictor.load_model(model_path)
-    print("✓ LSTM predictor initialized")
 
 # Initialize IoT sensors (optional - won't fail if not available)
 if CAMERA_SYSTEM_AVAILABLE and initialize_iot:
@@ -1189,92 +1177,6 @@ def get_emotions():
         'success': True,
         'data': current_emotion_stats
     }), 200
-
-
-@app.route('/api/lstm/predict', methods=['GET', 'POST'])
-def lstm_predict():
-    """Get LSTM predictions for engagement trends"""
-    global lstm_predictor, current_emotion_stats
-    
-    if not CAMERA_SYSTEM_AVAILABLE or lstm_predictor is None:
-        # Return mock data instead of error to prevent frontend breaking
-        return jsonify({
-            'success': True,
-            'data': {
-                'attention_scores': [75.0] * 10,
-                'engagement_scores': [70.0] * 10,
-                'trend': 'stable',
-                'confidence': 0.5,
-                'predicted_states': ['Engaged'] * 10,
-                'anomaly_detected': False,
-                'message': 'LSTM predictor not available - showing default data'
-            },
-            'timestamp': datetime.now().isoformat()
-        }), 200
-    
-    try:
-        # Get IoT sensor data if available
-        iot_data = None
-        environmental_score = 75.0  # Default
-        
-        if iot_enabled and get_iot_data:
-            try:
-                sensor_data = get_iot_data()
-                if sensor_data and sensor_data.get('timestamp'):
-                    iot_data = {
-                        'temperature': sensor_data.get('temperature', 50.0),
-                        'humidity': sensor_data.get('humidity', 50.0),
-                        'light': sensor_data.get('light', 50.0),
-                        'sound': sensor_data.get('sound', 50.0),
-                        'gas': sensor_data.get('gas', 50.0)
-                    }
-                    environmental_score = sensor_data.get('environmental_score', 75.0)
-            except Exception as e:
-                print(f"Warning: Could not get IoT data for LSTM: {e}")
-                # Continue without IoT data
-        
-        # Update LSTM with current observation (including IoT data)
-        observation = {
-            'attention': classroom_data['current_stats'].get('attentionLevel', 75),
-            'engagement': classroom_data['current_stats'].get('avgEngagement', 70),
-            'state_counts': current_emotion_stats.get('emotion_percentages', {}),
-            'student_count': classroom_data['current_stats'].get('studentsDetected', 0),
-            'iot_data': iot_data,  # Pass IoT sensor readings to LSTM
-            'environmental_score': environmental_score,
-            'timestamp': datetime.now()
-        }
-        
-        lstm_predictor.update_history(observation)
-        
-        # Get predictions
-        predictions = lstm_predictor.get_prediction_from_history()
-        
-        return jsonify({
-            'success': True,
-            'data': predictions,
-            'timestamp': datetime.now().isoformat()
-        }), 200
-        
-    except Exception as e:
-        print(f"Error in LSTM predict endpoint: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Return safe default data instead of 500 error
-        return jsonify({
-            'success': True,
-            'data': {
-                'attention_scores': [75.0] * 10,
-                'engagement_scores': [70.0] * 10,
-                'trend': 'stable',
-                'confidence': 0.5,
-                'predicted_states': ['Engaged'] * 10,
-                'anomaly_detected': False,
-                'message': f'Error generating predictions: {str(e)}'
-            },
-            'timestamp': datetime.now().isoformat()
-        }), 200
-
 
 # =========================
 # Error Handlers

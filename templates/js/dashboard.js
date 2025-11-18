@@ -1128,14 +1128,13 @@ if (!document.getElementById('dashboard-animations-style')) {
     `;
     document.head.appendChild(dashboardAnimationStyle);
 
-// LSTM Prediction Chart
-let lstmPredictionChart = null;
-let lstmPredictionData = {
-    history: [],
-    predictions: []
-};
+// =========================
+// LSTM Removed - Placeholder for Future Predictive Features
+// =========================
 
 function initLSTMPredictionChart() {
+    // LSTM functionality removed - no model available yet
+    return;
     const ctx = document.getElementById('lstmPredictionChart');
     if (!ctx) return;
     
@@ -1261,144 +1260,17 @@ function initLSTMPredictionChart() {
 }
 
 function updateLSTMPrediction() {
-    if (!lstmPredictionChart) return;
-    
-    // Try to fetch LSTM predictions from API
-    fetch('/api/lstm/predict')
-        .then(response => response.json())
-        .then(result => {
-            if (result.success && result.data) {
-                updateLSTMChartWithAPIData(result.data);
-            } else {
-                // Fallback to simulation
-                updateLSTMChartSimulation();
-            }
-        })
-        .catch(error => {
-            console.log('LSTM API not available, using simulation:', error);
-            updateLSTMChartSimulation();
-        });
+    // LSTM functionality removed - no model available yet
+    return;
 }
 
 function updateLSTMChartWithAPIData(apiData) {
-    if (!lstmPredictionChart) return;
-    
-    const currentEngagement = dashboardData.avgEngagement || 78;
-    
-    // Use API predictions
-    const predictions = apiData.engagement_scores || [];
-    
-    // Generate historical data (last 5 minutes) - could be from API history
-    const history = [];
-    for (let i = 5; i >= 0; i--) {
-        const variance = Math.random() * 10 - 5;
-        history.push(Math.min(100, Math.max(0, currentEngagement + variance)));
-    }
-    
-    // Generate confidence interval (upper bound)
-    const confidence = apiData.confidence || 0.8;
-    const confidenceRange = (1 - confidence) * 15; // Higher uncertainty = wider range
-    const confidenceUpper = predictions.map(v => Math.min(100, v + confidenceRange));
-    
-    // Update chart data
-    const historyData = [...history, ...Array(predictions.length).fill(null)];
-    const predictionData = [...Array(history.length).fill(null), ...predictions];
-    const confidenceData = [...Array(history.length).fill(null), ...confidenceUpper];
-    
-    lstmPredictionChart.data.datasets[0].data = historyData;
-    lstmPredictionChart.data.datasets[1].data = predictionData;
-    lstmPredictionChart.data.datasets[2].data = confidenceData;
-    lstmPredictionChart.update('none');
-    
-    // Update trend indicator
-    const trendEl = document.getElementById('lstmTrend');
-    if (trendEl) {
-        const trend = apiData.trend || 'stable';
-        const trendText = trend.charAt(0).toUpperCase() + trend.slice(1);
-        const trendColor = trend === 'improving' ? '#10b981' : 
-                          trend === 'declining' ? '#ef4444' : '#f59e0b';
-        trendEl.textContent = trendText;
-        trendEl.style.color = trendColor;
-        
-        // Add icon based on trend
-        const parentDiv = trendEl.parentElement;
-        if (parentDiv) {
-            const icon = parentDiv.querySelector('i[data-lucide]');
-            if (icon) {
-                icon.setAttribute('data-lucide', 
-                    trend === 'improving' ? 'trending-up' : 
-                    trend === 'declining' ? 'trending-down' : 'minus');
-                // Refresh lucide icons
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-            }
-        }
-    }
+    // LSTM functionality removed - no model available yet
+    return;
 }
 
 function updateLSTMChartSimulation() {
-    if (!lstmPredictionChart) return;
-    
-    // Simulate LSTM prediction (fallback when API is not available)
-    const currentEngagement = dashboardData.avgEngagement || 78;
-    
-    // Generate historical data (last 5 minutes)
-    const history = [];
-    for (let i = 5; i >= 0; i--) {
-        const variance = Math.random() * 10 - 5;
-        history.push(Math.min(100, Math.max(0, currentEngagement + variance)));
-    }
-    
-    // Generate predictions (next 10 minutes) with LSTM-like behavior
-    const predictions = [currentEngagement];
-    let trend = (Math.random() - 0.5) * 2; // Random trend direction
-    
-    for (let i = 1; i <= 10; i++) {
-        // Add momentum and noise
-        trend += (Math.random() - 0.5) * 0.5;
-        trend = Math.max(-2, Math.min(2, trend)); // Limit trend
-        
-        const lastValue = predictions[predictions.length - 1];
-        let nextValue = lastValue + trend;
-        
-        // Mean reversion tendency (LSTM characteristic)
-        const meanReversionFactor = (currentEngagement - nextValue) * 0.1;
-        nextValue += meanReversionFactor;
-        
-        // Add noise
-        nextValue += (Math.random() - 0.5) * 3;
-        
-        // Clamp values
-        nextValue = Math.min(95, Math.max(40, nextValue));
-        predictions.push(nextValue);
-    }
-    
-    // Generate confidence interval (upper bound)
-    const confidenceUpper = predictions.map(v => Math.min(100, v + 8));
-    
-    // Update chart data
-    const historyData = [...history, null, null, null, null, null, null, null, null, null, null];
-    const predictionData = [null, null, null, null, null, null, ...predictions];
-    const confidenceData = [null, null, null, null, null, null, ...confidenceUpper];
-    
-    lstmPredictionChart.data.datasets[0].data = historyData;
-    lstmPredictionChart.data.datasets[1].data = predictionData;
-    lstmPredictionChart.data.datasets[2].data = confidenceData;
-    lstmPredictionChart.update('none');
-    
-    // Update trend indicator
-    const trendEl = document.getElementById('lstmTrend');
-    if (trendEl) {
-        const avgPrediction = predictions.reduce((a, b) => a + b, 0) / predictions.length;
-        const trendDirection = avgPrediction > currentEngagement + 3 ? 'Improving' : 
-                             avgPrediction < currentEngagement - 3 ? 'Declining' : 'Stable';
-        const trendColor = trendDirection === 'Improving' ? '#10b981' : 
-                          trendDirection === 'Declining' ? '#ef4444' : '#f59e0b';
-        trendEl.textContent = trendDirection;
-        trendEl.style.color = trendColor;
-    }
-}
-
+    // LSTM functionality removed - no model available yet
+    return;
 }
 
