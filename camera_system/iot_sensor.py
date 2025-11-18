@@ -747,7 +747,7 @@ class IoTSensorReader:
 # Global instance
 iot_sensor = None
 
-def initialize_iot(port: str = None, baudrate: int = 115200) -> bool:
+def initialize_iot(port: str = None, baudrate: int = 9600) -> bool:
     """
     Initialize IoT sensor reader with graceful fallback
     

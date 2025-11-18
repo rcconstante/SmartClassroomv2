@@ -6,7 +6,7 @@ Run this to debug IoT connectivity issues
 import serial
 import time
 
-def test_arduino_connection(port='COM5', baudrate=115200):
+def test_arduino_connection(port='COM5', baudrate=9600):
     """Test Arduino connection and print raw data"""
     print("="*60)
     print("Arduino IoT Sensor Connection Test")
