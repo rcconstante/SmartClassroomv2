@@ -315,8 +315,8 @@ function loadDashboard() {
     // Fetch initial dashboard data
     fetchDashboardStats();
     
-    // Update stats every 3 seconds for real-time sync
-    setInterval(fetchDashboardStats, 3000);
+    // Update stats every 5 seconds for real-time sync
+    setInterval(fetchDashboardStats, 5000);
     
     // Auto-start camera if it was active before page change
     if (localStorage.getItem('cameraActive') === 'true') {
@@ -783,7 +783,7 @@ async function startCamera() {
         
         // Start updating detection stats more frequently
         if (cameraUpdateInterval) clearInterval(cameraUpdateInterval);
-        cameraUpdateInterval = setInterval(fetchDashboardStats, 1000); // Every 1 second when camera is active
+        cameraUpdateInterval = setInterval(fetchDashboardStats, 2000); // Every 2 seconds when camera is active
         
     } catch (error) {
         // Show error state

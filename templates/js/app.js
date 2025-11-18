@@ -287,8 +287,8 @@ function loadCamera() {
     // Fetch initial data
     fetchDashboardStats();
     
-    // Update stats every 3 seconds
-    setInterval(fetchDashboardStats, 3000);
+    // Update stats every 5 seconds
+    setInterval(fetchDashboardStats, 5000);
     
     // Update LSTM predictions every 2 seconds when camera is active
     setInterval(() => {
@@ -439,9 +439,13 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">IoT Sensor Data Log</h3>
-                        <p class="card-subtitle">Real-time environmental monitoring (All readings)</p>
+                        <p class="card-subtitle">Real-time environmental monitoring (Auto-updating)</p>
                     </div>
                     <div style="display: flex; gap: 12px;">
+                        <button id="toggleIoTLoggingBtn" class="btn btn-secondary" data-logging="false">
+                            <i data-lucide="database"></i>
+                            Start Database Logging
+                        </button>
                         <button id="exportIoTBtn" class="btn btn-secondary">
                             <i data-lucide="download"></i>
                             Export IoT Data
@@ -498,7 +502,7 @@ async function initAnalytics() {
         
         await populateIoTTable();
         
-        // Start continuous IoT data logging every 5 seconds
+        // Start continuous IoT data refresh every 10 seconds
         if (!window.iotDataInterval) {
             window.iotDataInterval = setInterval(async () => {
                 try {
@@ -506,8 +510,8 @@ async function initAnalytics() {
                 } catch (error) {
                     console.error('Error updating IoT data:', error);
                 }
-            }, 5000);
-            console.log('✓ Started continuous IoT data logging (5 second interval)');
+            }, 10000);
+            console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
         const dateRangeSelect = document.getElementById('analyticsDateRange');
@@ -528,8 +532,15 @@ async function initAnalytics() {
             exportIoTBtn.addEventListener('click', () => exportIoTDataCSV());
         }
         
-        // IoT Export Control
+        // IoT Database Logging Controls
+        const toggleIoTBtn = document.getElementById('toggleIoTLoggingBtn');
         const exportCurrentIoTBtn = document.getElementById('exportCurrentIoTBtn');
+        
+        if (toggleIoTBtn) {
+            toggleIoTBtn.addEventListener('click', async () => {
+                await toggleIoTLogging();
+            });
+        }
         
         if (exportCurrentIoTBtn) {
             exportCurrentIoTBtn.addEventListener('click', async () => {
@@ -537,12 +548,22 @@ async function initAnalytics() {
             });
         }
         
+        // Check initial logging status
+        await updateIoTLoggingStatus();
+        
+        // Update status every 10 seconds (reduced from 5 to minimize requests)
+        if (!window.iotStatusInterval) {
+            window.iotStatusInterval = setInterval(async () => {
+                await updateIoTLoggingStatus();
+            }, 10000);
+        }
+        
         // Auto-refresh every 5 seconds
         setInterval(async () => {
             const summaryResponse = await fetch('/api/analytics/summary');
             const summary = await summaryResponse.json();
             updateAnalyticsStats(summary);
-        }, 5000);
+        }, 15000);
         
     } catch (error) {
         console.error('Error initializing analytics:', error);
@@ -1338,7 +1359,7 @@ async function toggleIoTLogging() {
             if (result.success) {
                 btn.setAttribute('data-logging', 'false');
                 btn.className = 'btn btn-secondary';
-                btn.innerHTML = '<i data-lucide="play"></i> Start Simulation';
+                btn.innerHTML = '<i data-lucide="database"></i> Start Database Logging';
                 
                 document.getElementById('iotLoggingStatus').style.display = 'none';
                 
@@ -1354,7 +1375,7 @@ async function toggleIoTLogging() {
             if (result.success) {
                 btn.setAttribute('data-logging', 'true');
                 btn.className = 'btn btn-danger';
-                btn.innerHTML = '<i data-lucide="square"></i> Stop Simulation';
+                btn.innerHTML = '<i data-lucide="square"></i> Stop Database Logging';
                 
                 document.getElementById('iotLoggingStatus').style.display = 'flex';
                 document.getElementById('iotDbFile').textContent = result.db_file.split('/').pop();
@@ -1388,7 +1409,7 @@ async function updateIoTLoggingStatus() {
         if (status.enabled) {
             btn.setAttribute('data-logging', 'true');
             btn.className = 'btn btn-danger';
-            btn.innerHTML = '<i data-lucide="square"></i> Stop Simulation';
+            btn.innerHTML = '<i data-lucide="square"></i> Stop Database Logging';
             
             statusBar.style.display = 'flex';
             document.getElementById('iotDbFile').textContent = status.db_file.split('/').pop();
@@ -1396,7 +1417,7 @@ async function updateIoTLoggingStatus() {
         } else {
             btn.setAttribute('data-logging', 'false');
             btn.className = 'btn btn-secondary';
-            btn.innerHTML = '<i data-lucide="play"></i> Start Simulation';
+            btn.innerHTML = '<i data-lucide="database"></i> Start Database Logging';
             
             statusBar.style.display = 'none';
         }
