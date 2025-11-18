@@ -275,28 +275,11 @@ function loadCamera() {
                 </div>
             </div>
         </div>
-        
-        <!-- Detailed Engagement Analysis -->
-        <div class="card" style="margin-bottom: 24px;">
-            <div class="card-header">
-                <div>
-                    <h3 class="card-title">Detailed Engagement Analysis</h3>
-                    <p class="card-subtitle">Real-time breakdown of student states</p>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="emotionChart"></canvas>
-            </div>
-            <div id="emotionLegend" style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 20px 20px; justify-content: center;">
-                <!-- Engagement legend will be populated dynamically -->
-            </div>
-        </div>
     `;
     
     lucide.createIcons();
     
     // Initialize charts and camera controls
-    initEmotionChart();
     initLSTMPredictionChart();
     initCameraButton();
     initFullscreenButton();
@@ -307,12 +290,11 @@ function loadCamera() {
     // Update stats every 3 seconds
     setInterval(fetchDashboardStats, 3000);
     
-    // Update emotion data and LSTM predictions every 2 seconds when camera is active
+    // Update LSTM predictions every 2 seconds when camera is active
     setInterval(() => {
         // Check both local variable and localStorage for camera state
         const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
         if (isCameraActive) {
-            fetchEmotionData();
             updateLSTMPrediction();
             // Update student count
             const count = document.getElementById('studentsDetectedCount');
@@ -457,13 +439,9 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">IoT Sensor Data Log</h3>
-                        <p class="card-subtitle">Real-time environmental monitoring (Last 50 readings)</p>
+                        <p class="card-subtitle">Real-time environmental monitoring (All readings)</p>
                     </div>
                     <div style="display: flex; gap: 12px;">
-                        <button id="toggleIoTLoggingBtn" class="btn btn-secondary" data-logging="false">
-                            <i data-lucide="play"></i>
-                            Start Simulation
-                        </button>
                         <button id="exportIoTBtn" class="btn btn-secondary">
                             <i data-lucide="download"></i>
                             Export IoT Data
@@ -550,30 +528,13 @@ async function initAnalytics() {
             exportIoTBtn.addEventListener('click', () => exportIoTDataCSV());
         }
         
-        // IoT Database Logging Controls
-        const toggleIoTBtn = document.getElementById('toggleIoTLoggingBtn');
+        // IoT Export Control
         const exportCurrentIoTBtn = document.getElementById('exportCurrentIoTBtn');
-        
-        if (toggleIoTBtn) {
-            toggleIoTBtn.addEventListener('click', async () => {
-                await toggleIoTLogging();
-            });
-        }
         
         if (exportCurrentIoTBtn) {
             exportCurrentIoTBtn.addEventListener('click', async () => {
                 await exportCurrentIoTSession();
             });
-        }
-        
-        // Check initial logging status
-        await updateIoTLoggingStatus();
-        
-        // Update status every 5 seconds
-        if (!window.iotStatusInterval) {
-            window.iotStatusInterval = setInterval(async () => {
-                await updateIoTLoggingStatus();
-            }, 5000);
         }
         
         // Auto-refresh every 5 seconds
@@ -970,7 +931,7 @@ async function populateIoTTable() {
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/iot/history?limit=50');
+        const response = await fetch('/api/iot/history?limit=1000');
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {
@@ -1029,7 +990,7 @@ async function populateIoTTable() {
 
 async function exportIoTDataCSV() {
     try {
-        const response = await fetch('/api/iot/history?limit=50');
+        const response = await fetch('/api/iot/history?limit=1000');
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {

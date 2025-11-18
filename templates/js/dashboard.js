@@ -302,11 +302,9 @@ function loadDashboard() {
 
     // Reinitialize Lucide icons for dynamically added content
     lucide.createIcons();
-
     // Initialize charts
     initEngagementChart();
     initOccupancyChart();
-    initEmotionChart();
 
     // Initialize camera button
     initCameraButton();
@@ -336,7 +334,7 @@ function loadDashboard() {
         // Check both local variable and localStorage for camera state
         const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
         if (isCameraActive) {
-            fetchEmotionData();
+            // Emotion data updates moved to emotion detector
         }
     }, 2000);
 }
@@ -663,45 +661,6 @@ function updateEmotionLegendMini(emotionColors) {
             <span style="font-size: 9px; color: var(--text-secondary);">${emotion}</span>
         </div>
     `).join('');
-}
-
-// Fetch and update emotion data
-async function fetchEmotionData() {
-    // Check both local variable and localStorage for camera state
-    const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
-    if (!isCameraActive) return;
-
-    try {
-        const response = await fetch('/api/emotions');
-        const result = await response.json();
-
-        if (result.success) {
-            const emotionPercentages = result.data.emotion_percentages;
-            const emotionData = [
-                emotionPercentages.Happy || 0,
-                emotionPercentages.Surprise || 0,
-                emotionPercentages.Neutral || 0,
-                emotionPercentages.Sad || 0,
-                emotionPercentages.Angry || 0,
-                emotionPercentages.Disgust || 0,
-                emotionPercentages.Fear || 0
-            ];
-            
-            // Update main chart
-            if (emotionChart) {
-                emotionChart.data.datasets[0].data = emotionData;
-                emotionChart.update('none');
-            }
-            
-            // Update mini chart
-            if (emotionChartMini) {
-                emotionChartMini.data.datasets[0].data = emotionData;
-                emotionChartMini.update('none');
-            }
-        }
-    } catch (error) {
-        console.error('Error fetching emotion data:', error);
-    }
 }
 
 // Fetch Dashboard Data from Backend (deprecated - use fetchDashboardStats)

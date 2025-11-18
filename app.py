@@ -579,11 +579,11 @@ def get_iot_latest():
 
 @app.route('/api/iot/history', methods=['GET'])
 def get_iot_history():
-    """Get IoT sensor history data (last 50 readings)"""
+    """Get IoT sensor history data (all available readings)"""
     from camera_system.iot_sensor import iot_sensor
     
-    limit = request.args.get('limit', default=50, type=int)
-    limit = min(limit, 100)
+    limit = request.args.get('limit', default=1000, type=int)
+    limit = min(limit, 5000)
     
     if not iot_enabled or not iot_sensor:
         return jsonify({

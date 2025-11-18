@@ -753,10 +753,11 @@ def initialize_iot(port: str = None, baudrate: int = 115200) -> bool:
         iot_sensor = IoTSensorReader(port=port, baudrate=baudrate)
         
         if iot_sensor.connect():
-            # Do NOT start reading automatically - wait for user to click "Start Simulation"
-            print("[IoT] ✓ IoT sensor system initialized - Ready to start")
+            # Auto-start reading data immediately
+            iot_sensor.start_reading()
+            print("[IoT] ✓ IoT sensor system initialized and reading started")
             print(f"[IoT] ✓ Connected to {iot_sensor.port}")
-            print("[IoT] ℹ Data gathering will start when 'Start Simulation' is clicked in Analytics")
+            print("[IoT] ✓ Automatic data collection active")
             return True
         else:
             print("[IoT] ✗ Arduino not connected - IoT features disabled")
