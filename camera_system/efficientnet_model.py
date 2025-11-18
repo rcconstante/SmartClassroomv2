@@ -97,6 +97,7 @@ class EfficientNetEmotionDetector:
                 print(f"⚠ Warning: Could not load model weights from any path")
                 print(f"  Tried: {model_paths_to_try}")
                 print(f"  Model will use random weights (not trained)")
+                print(f"  ⚠ THIS WILL CAUSE POOR PREDICTIONS - ALL NEUTRAL!")
             
             # Move model to device and set to evaluation mode
             model = model.to(self.device)
@@ -104,6 +105,7 @@ class EfficientNetEmotionDetector:
             
             self.model = model
             print(f"✓ Model ready on device: {self.device}")
+            print(f"✓ Model loaded status: {'TRAINED' if model_loaded else 'UNTRAINED (RANDOM WEIGHTS)'}")
             
         except Exception as e:
             print(f"✗ Error loading EfficientNet model: {e}")
@@ -159,6 +161,7 @@ class EfficientNetEmotionDetector:
             - all_predictions: Dictionary of all emotion probabilities
         """
         if self.model is None:
+            print("[EfficientNet] WARNING: Model is None! Returning default Neutral.")
             return 'Neutral', 'Engaged', 0.0, {label: 0.0 for label in self.EMOTION_LABELS}
         
         try:
@@ -176,15 +179,24 @@ class EfficientNetEmotionDetector:
             confidence = confidence.item()
             raw_emotion = self.EMOTION_LABELS[predicted_idx]
             
-            # Map to engagement state
-            engagement_state = self.EMOTION_TO_ENGAGEMENT.get(raw_emotion, 'Engaged')
-            
             # Get all emotion probabilities
             all_probs = probabilities[0].cpu().numpy()
             all_predictions = {
                 label: float(prob) 
                 for label, prob in zip(self.EMOTION_LABELS, all_probs)
             }
+            
+            # DEBUG: Print all predictions to see what model is actually predicting
+            print(f"\n[EfficientNet DEBUG] Raw model output:")
+            print(f"  Predicted index: {predicted_idx}")
+            print(f"  Raw emotion: {raw_emotion}")
+            print(f"  Confidence: {confidence*100:.1f}%")
+            print(f"  All probabilities:")
+            for label, prob in sorted(all_predictions.items(), key=lambda x: x[1], reverse=True):
+                print(f"    {label:10s}: {prob*100:5.1f}%")
+            
+            # Map to engagement state
+            engagement_state = self.EMOTION_TO_ENGAGEMENT.get(raw_emotion, 'Engaged')
             
             return raw_emotion, engagement_state, confidence, all_predictions
             
