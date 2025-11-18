@@ -884,15 +884,16 @@ function initAnalyticsEmotionChart(emotionData = {}) {
     const ctx = document.getElementById('analyticsEmotionChart');
     if (!ctx) return;
 
-    // Use real emotion data or defaults
-    const labels = ['Engaged', 'Confused', 'Frustrated', 'Drowsy', 'Bored', 'Looking Away'];
+    // Use FER-2013 emotion labels
+    const labels = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'];
     const data = [
-        emotionData.Engaged || 0,
-        emotionData.Confused || 0,
-        emotionData.Frustrated || 0,
-        emotionData.Drowsy || 0,
-        emotionData.Bored || 0,
-        emotionData['Looking Away'] || 0
+        emotionData.Happy || 0,
+        emotionData.Surprise || 0,
+        emotionData.Neutral || 0,
+        emotionData.Sad || 0,
+        emotionData.Angry || 0,
+        emotionData.Disgust || 0,
+        emotionData.Fear || 0
     ];
     
     // Check if all values are zero
@@ -903,8 +904,8 @@ function initAnalyticsEmotionChart(emotionData = {}) {
         data: {
             labels: labels,
             datasets: [{
-                data: hasData ? data : [1, 1, 1, 1, 1, 1], // Show equal distribution if no data
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280', '#3b82f6'],
+                data: hasData ? data : [1, 1, 1, 1, 1, 1, 1], // Show equal distribution if no data
+                backgroundColor: ['#10b981', '#22d3ee', '#a78bfa', '#6b7280', '#ef4444', '#f97316', '#f59e0b'],
                 borderWidth: 2,
                 borderColor: '#ffffff'
             }]

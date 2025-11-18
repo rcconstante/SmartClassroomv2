@@ -35,7 +35,7 @@ class IoTSensorReader:
     --------------------------
     """
     
-    def __init__(self, port: str = None, baudrate: int = 115200):
+    def __init__(self, port: str = None, baudrate: int = 9600):
         self.port = port
         self.baudrate = baudrate
         self.serial_connection = None
