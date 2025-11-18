@@ -798,8 +798,7 @@ def export_analytics():
                 'humidity': f"{iot_data['humidity']}%" if iot_data['humidity'] else 'N/A',
                 'light': f"{iot_data['light']} lux" if iot_data['light'] else 'N/A',
                 'sound': iot_data['sound'] if iot_data['sound'] else 'N/A',
-                'gas': iot_data['gas'] if iot_data['gas'] else 'N/A',
-                'env_score': iot_data['environmental_score'] if iot_data['environmental_score'] else 'N/A'
+                'gas': iot_data['gas'] if iot_data['gas'] else 'N/A'
             })
         elif include_iot:
             row.update({
@@ -807,8 +806,7 @@ def export_analytics():
                 'humidity': 'N/A',
                 'light': 'N/A',
                 'sound': 'N/A',
-                'gas': 'N/A',
-                'env_score': 'N/A'
+                'gas': 'N/A'
             })
         
         analytics_data.append(row)

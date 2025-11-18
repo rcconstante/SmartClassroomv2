@@ -314,9 +314,13 @@ function loadDashboard() {
 
     // Fetch initial dashboard data
     fetchDashboardStats();
+    fetchIoTEnvironmentData();
     
     // Update stats every 5 seconds for real-time sync
     setInterval(fetchDashboardStats, 5000);
+    
+    // Update IoT environment data every 10 seconds
+    setInterval(fetchIoTEnvironmentData, 10000);
     
     // Auto-start camera if it was active before page change
     if (localStorage.getItem('cameraActive') === 'true') {
@@ -1000,14 +1004,18 @@ function handleFullscreenChange() {
                 videoElement.style.objectFit = 'contain';
             }
         } else {
+            // Reset to original small size after fullscreen exit
             cameraFeedContainer.style.maxHeight = '400px';
-            cameraFeedContainer.style.height = '';
+            cameraFeedContainer.style.height = '400px';
             cameraFeedContainer.style.aspectRatio = '4/3';
+            cameraFeedContainer.style.width = '';
             
             // Reset video fit
             const videoElement = document.getElementById('cameraVideoStream');
             if (videoElement) {
                 videoElement.style.objectFit = 'cover';
+                videoElement.style.width = '100%';
+                videoElement.style.height = '100%';
             }
         }
     }

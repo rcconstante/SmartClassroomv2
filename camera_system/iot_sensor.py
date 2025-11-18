@@ -341,7 +341,7 @@ class IoTSensorReader:
         
         last_db_write = time.time()
         last_debug_print = time.time()
-        db_interval = 5  # Write to database every 5 seconds
+        db_interval = 1  # Write to database every 1 second
         debug_interval = 10  # Print debug info every 10 seconds
         
         while self.is_reading:
@@ -383,7 +383,7 @@ class IoTSensorReader:
                         except queue.Full:
                             pass  # Queue full, skip this reading
                         
-                        # Write to SQLite database every 5 seconds if logging enabled
+                        # Write to SQLite database every 1 second if logging enabled
                         current_time = time.time()
                         if self.db_logging_enabled and current_time - last_db_write >= db_interval:
                             if all(key in self.current_data for key in ['timestamp', 'raw_temperature', 'raw_humidity']):

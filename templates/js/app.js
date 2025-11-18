@@ -446,10 +446,6 @@ function loadAnalytics() {
                             <i data-lucide="database"></i>
                             Start Database Logging
                         </button>
-                        <button id="exportIoTBtn" class="btn btn-secondary">
-                            <i data-lucide="download"></i>
-                            Export IoT Data
-                        </button>
                     </div>
                 </div>
                 <div style="overflow-x: auto;">
@@ -525,11 +521,6 @@ async function initAnalytics() {
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', () => exportAnalyticsCSV(days, true));
-        }
-        
-        const exportIoTBtn = document.getElementById('exportIoTBtn');
-        if (exportIoTBtn) {
-            exportIoTBtn.addEventListener('click', () => exportIoTDataCSV());
         }
         
         // IoT Database Logging Controls
@@ -616,7 +607,7 @@ async function exportAnalyticsCSV(days, includeIoT = true) {
         
         let headers = ['Date', 'Session', 'Students Present', 'Engagement %', 'Attention %', 'Status'];
         if (hasIoT) {
-            headers.push('Temperature', 'Humidity', 'Light', 'Sound', 'Gas', 'Env Score');
+            headers.push('Temperature', 'Humidity', 'Light', 'Sound', 'Gas');
         }
         
         const rows = result.data.map(row => {
@@ -634,8 +625,7 @@ async function exportAnalyticsCSV(days, includeIoT = true) {
                     row.humidity,
                     row.light,
                     row.sound,
-                    row.gas,
-                    row.env_score
+                    row.gas
                 );
             }
             return baseRow;
@@ -959,7 +949,7 @@ async function populateIoTTable() {
         if (!result.success || !result.data || result.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p>No IoT sensor data available. Connect Arduino to start logging.</p>
                     </td>
@@ -988,9 +978,6 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.light}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.sound}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.gas}</td>
-                    <td style="padding: 10px; text-align: center; font-size: 13px;">
-                        <span class="badge" style="background: ${getScoreColor(row.environmental_score)};">${row.environmental_score}</span>
-                    </td>
                 </tr>
             `;
         }).join('');
@@ -1000,7 +987,7 @@ async function populateIoTTable() {
         console.error('Error fetching IoT data:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                <td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                     <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                     <p>Failed to load IoT sensor data</p>
                 </td>
