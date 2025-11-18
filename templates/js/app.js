@@ -943,7 +943,7 @@ async function populateIoTTable() {
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/iot/history?limit=1000');
+        const response = await fetch('/api/iot/history');  // No limit - get all records
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {
@@ -999,7 +999,7 @@ async function populateIoTTable() {
 
 async function exportIoTDataCSV() {
     try {
-        const response = await fetch('/api/iot/history?limit=1000');
+        const response = await fetch('/api/iot/history');  // No limit - get all records
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {

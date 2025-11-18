@@ -383,10 +383,11 @@ class IoTSensorReader:
                         except queue.Full:
                             pass  # Queue full, skip this reading
                         
-                        # Write to SQLite database every 1 second if logging enabled
-                        current_time = time.time()
-                        if self.db_logging_enabled and current_time - last_db_write >= db_interval:
-                            if all(key in self.current_data for key in ['timestamp', 'raw_temperature', 'raw_humidity']):
+                        # Write to SQLite database immediately when we have all sensor readings
+                        if self.db_logging_enabled:
+                            # Check if we have all required sensor data (complete reading from Arduino)
+                            required_sensors = ['raw_temperature', 'raw_humidity', 'raw_light', 'raw_sound', 'raw_gas']
+                            if all(key in self.current_data for key in required_sensors):
                                 try:
                                     cursor = self.db_connection.cursor()
                                     cursor.execute('''
@@ -411,13 +412,17 @@ class IoTSensorReader:
                                         round(self.current_data.get('gas', 0), 1)
                                     ))
                                     self.db_connection.commit()
-                                    last_db_write = current_time
                                     
                                     # Get record count
                                     cursor.execute('SELECT COUNT(*) FROM sensor_data WHERE session_id = ?', 
                                                  (self.db_session_id,))
                                     count = cursor.fetchone()[0]
                                     print(f"[IoT] ✓ Data logged to SQLite at {self.current_data['timestamp'].strftime('%H:%M:%S')} (Record #{count})")
+                                    
+                                    # Clear sensor data after logging to avoid duplicate logs
+                                    for sensor in required_sensors:
+                                        if sensor in self.current_data:
+                                            del self.current_data[sensor]
                                 except Exception as e:
                                     print(f"[IoT] ✗ Database write error: {e}")
                 

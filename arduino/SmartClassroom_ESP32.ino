@@ -97,6 +97,6 @@ void loop() {
 
   Serial.println("============================\n");
 
-  delay(3000);
+  delay(1000);  // Send data every 1 second
 }
 
