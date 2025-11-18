@@ -457,12 +457,19 @@ class IoTSensorReader:
         }
     
     def start_db_logging(self) -> Dict:
-        """Start logging to a new SQLite database"""
+        """Start logging to a new SQLite database and begin sensor data gathering"""
         if self.db_logging_enabled:
             return {
                 'success': False,
                 'message': 'Database logging already active',
                 'db_file': self.db_file
+            }
+        
+        # Check if connected to Arduino
+        if not self.is_connected:
+            return {
+                'success': False,
+                'message': 'IoT sensors not connected'
             }
         
         try:
@@ -505,6 +512,12 @@ class IoTSensorReader:
             self.db_connection.commit()
             
             self.db_logging_enabled = True
+            
+            # Start sensor reading thread if not already running
+            if not self.is_reading:
+                self.start_reading()
+                print(f"[IoT] ✓ Sensor data gathering started")
+            
             print(f"[IoT] ✓ Database logging started: {self.db_file}")
             
             return {
@@ -522,7 +535,7 @@ class IoTSensorReader:
             }
     
     def stop_db_logging(self) -> Dict:
-        """Stop database logging"""
+        """Stop database logging and sensor data gathering"""
         if not self.db_logging_enabled:
             return {
                 'success': False,
@@ -530,6 +543,13 @@ class IoTSensorReader:
             }
         
         try:
+            # Stop sensor reading thread
+            if self.is_reading:
+                self.is_reading = False
+                if self.reading_thread:
+                    self.reading_thread.join(timeout=2)
+                print(f"[IoT] ✓ Sensor data gathering stopped")
+            
             if self.db_connection:
                 # Get final record count
                 cursor = self.db_connection.cursor()
@@ -717,6 +737,9 @@ def initialize_iot(port: str = None, baudrate: int = 115200) -> bool:
     """
     Initialize IoT sensor reader with graceful fallback
     
+    Note: This only connects to the Arduino, but does NOT start reading data.
+    Data gathering will start when start_db_logging() is called from the UI.
+    
     Args:
         port: Serial port (e.g., 'COM3')
         baudrate: Serial baud rate (default 115200)
@@ -730,9 +753,10 @@ def initialize_iot(port: str = None, baudrate: int = 115200) -> bool:
         iot_sensor = IoTSensorReader(port=port, baudrate=baudrate)
         
         if iot_sensor.connect():
-            iot_sensor.start_reading()
-            print("[IoT] ✓ IoT sensor system initialized - Real sensor data active")
+            # Do NOT start reading automatically - wait for user to click "Start Simulation"
+            print("[IoT] ✓ IoT sensor system initialized - Ready to start")
             print(f"[IoT] ✓ Connected to {iot_sensor.port}")
+            print("[IoT] ℹ Data gathering will start when 'Start Simulation' is clicked in Analytics")
             return True
         else:
             print("[IoT] ✗ Arduino not connected - IoT features disabled")

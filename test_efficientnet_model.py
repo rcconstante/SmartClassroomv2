@@ -33,8 +33,8 @@ def test_model_loading():
         
         # Test 3: Create sample image
         print("\n3. Testing prediction with sample image...")
-        # Create a grayscale sample face image (48x48)
-        sample_face = np.random.randint(0, 255, (48, 48, 3), dtype=np.uint8)
+        # Create a sample RGB face image (any size - will be resized to 224x224)
+        sample_face = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
         
         # Test 4: Predict emotion
         print("\n4. Testing emotion prediction...")
