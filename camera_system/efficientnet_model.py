@@ -1,9 +1,12 @@
 """
 EfficientNet-B0 Emotion Detection Model
-Keras/TensorFlow implementation for FER-2013 emotion recognition
+PyTorch implementation for FER-2013 emotion recognition
 Maps 7 raw emotions to 6 engagement states for classroom analysis
 """
 
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
 from PIL import Image
 import cv2
 import numpy as np
@@ -13,7 +16,7 @@ import os
 
 class EfficientNetEmotionDetector:
     """
-    Keras/TensorFlow EfficientNet-B0 model for emotion detection
+    PyTorch EfficientNet-B0 model for emotion detection
     Trained on FER-2013 dataset with 7 emotion classes
     """
     
@@ -31,53 +34,54 @@ class EfficientNetEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/model_combined_best.weights.h5'):
+    def __init__(self, model_path='static/model/fer2013-bestmodel-new.pth'):
         """
         Initialize EfficientNet emotion detector
         
         Args:
-            model_path: Path to trained model weights (.h5 file)
+            model_path: Path to trained model weights (.pth file)
         """
         self.model_path = model_path
-        self.model = None  # Will hold the Keras model directly
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = None
         self.emotion_labels = self.EMOTION_LABELS
         
-        # Load the model
+        self.transform = transforms.Compose([
+            transforms.Resize((48, 48)),
+            transforms.Grayscale(num_output_channels=1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
+        
         self._load_model()
     def _load_model(self):
-        """Load Keras model from H5 file"""
+        """Load PyTorch model from .pth file"""
         try:
             print(f"[EfficientNet] Loading model...")
             
-            # Load the specific combined model weights (Keras H5 format)
-            model_path = 'static/model/model_combined_best.weights.h5'
+            model_path = 'static/model/fer2013-bestmodel-new.pth'
             
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found: {model_path}")
             
-            print(f"[EfficientNet] Loading Keras model from: {model_path}")
+            print(f"[EfficientNet] Loading PyTorch model from: {model_path}")
             
-            try:
-                # Load the Keras model directly using TensorFlow
-                import tensorflow as tf
-                
-                # Load the pre-trained Keras model
-                self.model = tf.keras.models.load_model(model_path)
-                self.model_path = model_path
-                
-                print(f"✓ Successfully loaded Keras model from: {model_path}")
-                print(f"  Model input shape: {self.model.input_shape}")
-                print(f"  Model output shape: {self.model.output_shape}")
-                print(f"✓ Model ready for inference")
-                
-            except ImportError:
-                print(f"✗ TensorFlow not installed. Install with: pip install tensorflow")
-                raise Exception("TensorFlow is required to load Keras .h5 model files")
-            except Exception as e:
-                print(f"✗ Failed to load Keras model: {e}")
-                import traceback
-                traceback.print_exc()
-                raise Exception(f"Could not load model from {model_path}: {e}")
+            self.model = models.efficientnet_b0(pretrained=False)
+            num_features = self.model.classifier[1].in_features
+            self.model.classifier[1] = nn.Linear(num_features, len(self.EMOTION_LABELS))
+            
+            state_dict = torch.load(model_path, map_location=self.device)
+            if isinstance(state_dict, dict) and 'state_dict' in state_dict:
+                state_dict = state_dict['state_dict']
+            
+            self.model.load_state_dict(state_dict)
+            self.model.to(self.device)
+            self.model.eval()
+            self.model_path = model_path
+            
+            print(f"✓ Successfully loaded PyTorch model from: {model_path}")
+            print(f"  Device: {self.device}")
+            print(f"  Model ready for inference")
             
         except Exception as e:
             print(f"✗ Error loading EfficientNet model: {e}")
@@ -104,40 +108,30 @@ class EfficientNetEmotionDetector:
             return 'Neutral', 'Engaged', 0.0, {label: 0.0 for label in self.EMOTION_LABELS}
         
         try:
-            import numpy as np
-            
-            # Preprocess for Keras model
-            # Convert BGR to RGB
             if len(face_image.shape) == 3:
                 face_rgb = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
             else:
                 face_rgb = face_image
             
-            # Resize to expected input size (224x224)
             pil_image = Image.fromarray(face_rgb)
-            pil_image = pil_image.resize((224, 224))
+            tensor = self.transform(pil_image)
+            tensor = tensor.unsqueeze(0).to(self.device)
             
-            # Convert to array and normalize
-            img_array = np.array(pil_image, dtype=np.float32)
-            img_array = img_array / 255.0  # Normalize to 0-1
-            img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
+            with torch.no_grad():
+                outputs = self.model(tensor)
+                probabilities = torch.softmax(outputs, dim=1)
+                confidence, predicted_idx = torch.max(probabilities, dim=1)
             
-            # Run inference
-            predictions = self.model.predict(img_array, verbose=0)
-            probabilities = predictions[0]  # Get first (only) batch
-            
-            # Get top prediction
-            predicted_idx = int(np.argmax(probabilities))
-            confidence = float(probabilities[predicted_idx])
+            predicted_idx = predicted_idx.item()
+            confidence = confidence.item()
             raw_emotion = self.EMOTION_LABELS[predicted_idx]
             
-            # Get all emotion probabilities
+            all_probs = probabilities[0].cpu().numpy()
             all_predictions = {
                 label: float(prob) 
-                for label, prob in zip(self.EMOTION_LABELS, probabilities)
+                for label, prob in zip(self.EMOTION_LABELS, all_probs)
             }
             
-            # Map to engagement state
             engagement_state = self.EMOTION_TO_ENGAGEMENT.get(raw_emotion, 'Engaged')
             
             return raw_emotion, engagement_state, confidence, all_predictions
@@ -162,40 +156,34 @@ class EfficientNetEmotionDetector:
             return []
         
         try:
-            import numpy as np
-            
-            results = []
+            tensors = []
             for face_image in face_images:
-                # Preprocess for Keras model
-                # Convert BGR to RGB
                 if len(face_image.shape) == 3:
                     face_rgb = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
                 else:
                     face_rgb = face_image
-                
-                # Resize to expected input size
                 pil_image = Image.fromarray(face_rgb)
-                pil_image = pil_image.resize((224, 224))
-                
-                # Convert to array and normalize
-                img_array = np.array(pil_image, dtype=np.float32)
-                img_array = img_array / 255.0  # Normalize to 0-1
-                img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-                
-                # Run inference
-                predictions = self.model.predict(img_array, verbose=0)
-                probabilities = predictions[0]  # Get first (only) batch
-                
-                # Get top prediction
-                predicted_idx = int(np.argmax(probabilities))
-                confidence = float(probabilities[predicted_idx])
+                tensor = self.transform(pil_image)
+                tensors.append(tensor)
+            
+            batch_tensor = torch.stack(tensors).to(self.device)
+            
+            with torch.no_grad():
+                outputs = self.model(batch_tensor)
+                probabilities = torch.softmax(outputs, dim=1)
+                confidences, predicted_indices = torch.max(probabilities, dim=1)
+            
+            results = []
+            for i in range(len(face_images)):
+                predicted_idx = predicted_indices[i].item()
+                confidence = confidences[i].item()
                 raw_emotion = self.EMOTION_LABELS[predicted_idx]
                 engagement_state = self.EMOTION_TO_ENGAGEMENT.get(raw_emotion, 'Engaged')
                 
-                # Get all emotion probabilities
+                all_probs = probabilities[i].cpu().numpy()
                 all_predictions = {
                     label: float(prob) 
-                    for label, prob in zip(self.EMOTION_LABELS, probabilities)
+                    for label, prob in zip(self.EMOTION_LABELS, all_probs)
                 }
                 
                 results.append((raw_emotion, engagement_state, confidence, all_predictions))
@@ -209,19 +197,20 @@ class EfficientNetEmotionDetector:
     def get_model_info(self) -> Dict:
         """Get information about the loaded model"""
         return {
-            'model_type': 'EfficientNet-B0 (Keras)',
+            'model_type': 'EfficientNet-B0',
             'model_path': self.model_path,
-            'framework': 'TensorFlow/Keras',
+            'framework': 'PyTorch',
+            'device': str(self.device),
             'emotion_classes': len(self.EMOTION_LABELS),
             'emotion_labels': self.EMOTION_LABELS,
-            'input_size': (224, 224),
+            'input_size': (48, 48),
             'is_loaded': self.model is not None
         }
     
     def __repr__(self):
         """String representation"""
         return (f"EfficientNetEmotionDetector("
-                f"framework=TensorFlow/Keras, "
+                f"device={self.device}, "
                 f"model_loaded={self.model is not None}, "
                 f"emotions={len(self.EMOTION_LABELS)})")
 
