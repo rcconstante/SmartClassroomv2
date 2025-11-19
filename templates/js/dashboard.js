@@ -85,20 +85,20 @@ function updateEnvironmentMonitor(iotData) {
         }
     }
     
-    // Air Quality (0-500 AQI range, lower is better, display raw value)
+    // Air Quality (0-4095 range, lower is better, display raw value)
     const airEl = document.getElementById('envAirQuality');
     const airBarEl = document.getElementById('envAirQualityBar');
     if (airEl && iotData.air_quality !== undefined) {
         const airQuality = parseFloat(iotData.air_quality);
         airEl.textContent = airQuality.toFixed(0);
         if (airBarEl) {
-            // Invert scale: 0 AQI = 100% bar (excellent), 500 AQI = 0% bar (hazardous)
-            const airPercent = Math.max(0, 100 - (airQuality / 500) * 100);
+            // Invert scale: 0 = 100% bar (excellent), 4095 = 0% bar (poor)
+            const airPercent = Math.max(0, 100 - (airQuality / 4095) * 100);
             airBarEl.style.width = airPercent + '%';
         }
     }
     
-    // Noise Level (0-4095 ADC range for sound sensor)
+    // Noise Level (0-4095 range for sound sensor)
     const noiseEl = document.getElementById('envNoise');
     const noiseBarEl = document.getElementById('envNoiseBar');
     if (noiseEl && iotData.sound !== undefined) {

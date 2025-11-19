@@ -309,7 +309,7 @@ function loadCamera() {
             </div>
             
             <!-- Full-Width Camera Feed Container -->
-            <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; height: 400px; width: 100%; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
+            <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 16/9; width: 100%; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
                 <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
                     <i data-lucide="camera" style="width: 64px; height: 64px; color: #6b7280;"></i>
                     <p style="color: #9ca3af; font-size: 16px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
@@ -348,7 +348,7 @@ function loadCamera() {
                         <p class="card-subtitle">Real-time distribution</p>
                     </div>
                 </div>
-                <div class="chart-container">
+                <div class="chart-container" style="height: 250px;">
                     <canvas id="emotionChartMini"></canvas>
                 </div>
                 <div id="emotionLegendMini" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; justify-content: center; font-size: 11px;">
@@ -1139,7 +1139,7 @@ async function populateIoTTable() {
         if (!result.success || !result.data || result.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p>No IoT sensor data available. Connect Arduino to start logging.</p>
                     </td>
@@ -1160,6 +1160,8 @@ async function populateIoTTable() {
                 return '#ef4444';
             };
             
+            const envScore = row.environmental_score || 0;
+            
             return `
                 <tr style="border-bottom: 1px solid var(--border-color);">
                     <td style="padding: 10px; font-size: 13px;">${dateStr} ${timeStr}</td>
@@ -1168,6 +1170,9 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.light}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.sound}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.gas}</td>
+                    <td style="padding: 10px; text-align: center;">
+                        <span class="badge" style="background: ${getScoreColor(envScore)};">${envScore.toFixed(1)}</span>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -1177,7 +1182,7 @@ async function populateIoTTable() {
         console.error('Error fetching IoT data:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                     <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                     <p>Failed to load IoT sensor data</p>
                 </td>
