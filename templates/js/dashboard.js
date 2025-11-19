@@ -2,14 +2,14 @@
 
 // Global state for dashboard data
 let dashboardData = {
-    totalStudents: 32,
-    studentsDetected: 28,
-    avgEngagement: 78,
-    attentionLevel: 82,
-    lookingAtBoard: 23,
-    takingNotes: 18,
-    distracted: 5,
-    tired: 2
+    totalStudents: 0,
+    studentsDetected: 0,
+    avgEngagement: 0,
+    attentionLevel: 0,
+    lookingAtBoard: 0,
+    takingNotes: 0,
+    distracted: 0,
+    tired: 0
 };
 
 // Fetch and update dashboard stats
@@ -97,6 +97,19 @@ function updateEnvironmentMonitor(iotData) {
             airBarEl.style.width = airPercent + '%';
         }
     }
+    
+    // Noise Level (0-4095 ADC range for sound sensor)
+    const noiseEl = document.getElementById('envNoise');
+    const noiseBarEl = document.getElementById('envNoiseBar');
+    if (noiseEl && iotData.sound !== undefined) {
+        const noise = parseFloat(iotData.sound);
+        noiseEl.textContent = noise.toFixed(0);
+        if (noiseBarEl) {
+            // Scale 0-4095 to 0-100%
+            const noisePercent = Math.min(100, (noise / 4095) * 100);
+            noiseBarEl.style.width = noisePercent + '%';
+        }
+    }
 }
 
 // Update dashboard UI with current data
@@ -151,10 +164,10 @@ function loadDashboard() {
                         <i data-lucide="users"></i>
                     </div>
                 </div>
-                <div class="stat-value" id="totalStudents">32</div>
+                <div class="stat-value" id="totalStudents">0</div>
                 <div class="stat-change positive">
-                    <i data-lucide="trending-up"></i>
-                    <span>+2 this semester</span>
+                    <i data-lucide="info"></i>
+                    <span>Start camera to detect</span>
                 </div>
             </div>
 
@@ -165,10 +178,10 @@ function loadDashboard() {
                         <i data-lucide="activity"></i>
                     </div>
                 </div>
-                <div class="stat-value" id="avgEngagement">78<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
-                <div class="stat-change positive">
-                    <i data-lucide="trending-up"></i>
-                    <span>+5% from last week</span>
+                <div class="stat-value" id="avgEngagement">0<span style="font-size: 20px; color: var(--text-secondary);">%</span></div>
+                <div class="stat-change neutral">
+                    <i data-lucide="info"></i>
+                    <span>No data available</span>
                 </div>
             </div>
 
@@ -252,7 +265,7 @@ function loadDashboard() {
                                 <i data-lucide="thermometer" style="width: 18px; height: 18px; color: #ef4444;"></i>
                                 <span style="font-size: 14px; font-weight: 500;">Temperature</span>
                             </div>
-                            <span id="envTemp" style="font-size: 18px; font-weight: 600;">0°C</span>
+                            <span id="envTemp" style="font-size: 18px; font-weight: 600;">--°C</span>
                         </div>
                         <div class="progress-bar">
                             <div id="envTempBar" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #ef4444, #f87171);"></div>
@@ -264,7 +277,7 @@ function loadDashboard() {
                                 <i data-lucide="droplets" style="width: 18px; height: 18px; color: #3b82f6;"></i>
                                 <span style="font-size: 14px; font-weight: 500;">Humidity</span>
                             </div>
-                            <span id="envHumidity" style="font-size: 18px; font-weight: 600;">0%</span>
+                            <span id="envHumidity" style="font-size: 18px; font-weight: 600;">--%</span>
                         </div>
                         <div class="progress-bar">
                             <div id="envHumidityBar" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
@@ -276,7 +289,7 @@ function loadDashboard() {
                                 <i data-lucide="sun" style="width: 18px; height: 18px; color: #f59e0b;"></i>
                                 <span style="font-size: 14px; font-weight: 500;">Light Level</span>
                             </div>
-                            <span id="envLight" style="font-size: 18px; font-weight: 600;">0</span>
+                            <span id="envLight" style="font-size: 18px; font-weight: 600;">--</span>
                         </div>
                         <div class="progress-bar">
                             <div id="envLightBar" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
@@ -288,10 +301,22 @@ function loadDashboard() {
                                 <i data-lucide="wind" style="width: 18px; height: 18px; color: #10b981;"></i>
                                 <span style="font-size: 14px; font-weight: 500;">Air Quality</span>
                             </div>
-                            <span id="envAirQuality" style="font-size: 18px; font-weight: 600;">0</span>
+                            <span id="envAirQuality" style="font-size: 18px; font-weight: 600;">--</span>
                         </div>
                         <div class="progress-bar">
                             <div id="envAirQualityBar" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="volume-2" style="width: 18px; height: 18px; color: #8b5cf6;"></i>
+                                <span style="font-size: 14px; font-weight: 500;">Noise Level</span>
+                            </div>
+                            <span id="envNoise" style="font-size: 18px; font-weight: 600;">--</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="envNoiseBar" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #8b5cf6, #a78bfa);"></div>
                         </div>
                     </div>
                 </div>
@@ -433,18 +458,29 @@ function initEngagementChart() {
 }
 
 // Initialize Occupancy Chart
+let occupancyChart = null;
+let occupancyHistory = [];
+
 function initOccupancyChart() {
     const ctx = document.getElementById('occupancyChart');
     if (!ctx) return;
 
-    new Chart(ctx, {
+    // Initialize with empty data
+    const labels = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+        const time = new Date(now.getTime() - i * 60000); // Last 7 minutes
+        labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+    }
+
+    occupancyChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            labels: labels,
             datasets: [
                 {
                     label: 'Students Present',
-                    data: [28, 30, 27, 29, 28, 25, 26],
+                    data: Array(7).fill(0),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
@@ -509,7 +545,7 @@ function initOccupancyChart() {
                     ticks: {
                         stepSize: 5,
                         callback: function(value) {
-                            return value + ' students';
+                            return value;
                         }
                     }
                 },
@@ -526,6 +562,38 @@ function initOccupancyChart() {
             }
         }
     });
+    
+    // Start updating occupancy data every 5 seconds
+    setInterval(updateOccupancyChart, 5000);
+}
+
+// Update occupancy chart with real-time YOLO detection data
+function updateOccupancyChart() {
+    if (!occupancyChart) return;
+    
+    // Get current student count from YOLO detection
+    const currentStudents = classroom_data['current_stats']['studentsDetected'] || 0;
+    
+    // Add to history
+    occupancyHistory.push({
+        timestamp: new Date(),
+        count: currentStudents
+    });
+    
+    // Keep only last 20 data points (about 1.5 minutes at 5-second intervals)
+    if (occupancyHistory.length > 20) {
+        occupancyHistory.shift();
+    }
+    
+    // Update chart labels and data
+    const labels = occupancyHistory.map(item => 
+        item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    );
+    const data = occupancyHistory.map(item => item.count);
+    
+    occupancyChart.data.labels = labels;
+    occupancyChart.data.datasets[0].data = data;
+    occupancyChart.update('none'); // Update without animation for smoother real-time updates
 }
 
 // Initialize Emotion Detection Chart
@@ -552,7 +620,7 @@ function initEmotionChart() {
             data: {
                 labels: ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'],
                 datasets: [{
-                    data: [0, 0, 0, 0, 0, 0, 0],
+                    data: [1, 1, 1, 1, 1, 1, 1], // Equal placeholder for N/A state
                     backgroundColor: [
                         emotionColors.Happy,
                         emotionColors.Surprise,
@@ -574,6 +642,7 @@ function initEmotionChart() {
                         display: false
                     },
                     tooltip: {
+                        enabled: false, // Disable tooltip for N/A state, enable when data available
                         callbacks: {
                             label: function(context) {
                                 const label = context.label || '';
@@ -586,8 +655,8 @@ function initEmotionChart() {
             }
         });
 
-        // Create custom legend
-        updateEmotionLegend(emotionColors);
+        // Create custom legend with N/A values initially
+        updateEmotionLegend(emotionColors, false);
     }
     
     // Mini emotion chart in camera monitor
@@ -608,7 +677,7 @@ function initEmotionChart() {
             data: {
                 labels: ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'],
                 datasets: [{
-                    data: [0, 0, 0, 0, 0, 0, 0],
+                    data: [1, 1, 1, 1, 1, 1, 1], // Equal placeholder for N/A state
                     backgroundColor: [
                         emotionColors.Happy,
                         emotionColors.Surprise,
@@ -630,18 +699,18 @@ function initEmotionChart() {
                         display: false
                     },
                     tooltip: {
-                        enabled: false
+                        enabled: false // Disable for N/A state
                     }
                 }
             }
         });
 
-        // Create custom mini legend
-        updateEmotionLegendMini(emotionColors);
+        // Create custom mini legend with N/A values initially
+        updateEmotionLegendMini(emotionColors, false);
     }
 }
 
-function updateEmotionLegend(emotionColors) {
+function updateEmotionLegend(emotionColors, hasData = false) {
     const legendContainer = document.getElementById('emotionLegend');
     if (!legendContainer) return;
 
@@ -649,12 +718,12 @@ function updateEmotionLegend(emotionColors) {
     legendContainer.innerHTML = emotions.map(emotion => `
         <div style="display: flex; align-items: center; gap: 6px;">
             <div style="width: 10px; height: 10px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
-            <span style="font-size: 11px; color: var(--text-secondary);">${emotion}</span>
+            <span style="font-size: 11px; color: var(--text-secondary);">${emotion}: ${hasData ? '--' : 'N/A'}</span>
         </div>
     `).join('');
 }
 
-function updateEmotionLegendMini(emotionColors) {
+function updateEmotionLegendMini(emotionColors, hasData = false) {
     const legendContainer = document.getElementById('emotionLegendMini');
     if (!legendContainer) return;
 
@@ -994,28 +1063,32 @@ function handleFullscreenChange() {
     // Adjust video stream size in fullscreen
     if (cameraFeedContainer) {
         if (isFullscreen) {
-            cameraFeedContainer.style.maxHeight = 'none';
+            // Fullscreen mode
             cameraFeedContainer.style.height = '100vh';
-            cameraFeedContainer.style.aspectRatio = 'auto';
+            cameraFeedContainer.style.width = '100vw';
+            cameraFeedContainer.style.maxHeight = 'none';
             
             // Make video fit fullscreen
             const videoElement = document.getElementById('cameraVideoStream');
             if (videoElement) {
                 videoElement.style.objectFit = 'contain';
+                videoElement.style.maxWidth = '100vw';
+                videoElement.style.maxHeight = '100vh';
             }
         } else {
-            // Reset to original small size after fullscreen exit
-            cameraFeedContainer.style.maxHeight = '400px';
+            // Exit fullscreen - restore to original size
             cameraFeedContainer.style.height = '400px';
-            cameraFeedContainer.style.aspectRatio = '4/3';
-            cameraFeedContainer.style.width = '';
+            cameraFeedContainer.style.width = '100%';
+            cameraFeedContainer.style.maxHeight = '';
             
-            // Reset video fit
+            // Reset video fit to cover
             const videoElement = document.getElementById('cameraVideoStream');
             if (videoElement) {
                 videoElement.style.objectFit = 'cover';
                 videoElement.style.width = '100%';
                 videoElement.style.height = '100%';
+                videoElement.style.maxWidth = '';
+                videoElement.style.maxHeight = '';
             }
         }
     }

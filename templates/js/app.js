@@ -6,19 +6,87 @@ lucide.createIcons();
 const state = {
     currentPage: 'dashboard',
     user: null,
-    isAuthenticated: true, // Set to true for demo
+    isAuthenticated: false, // Set to false - require proper login
     isDarkMode: localStorage.getItem('darkMode') === 'true'
 };
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-    initDarkMode();
+    // Check if user is authenticated
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) {
+        // Not logged in, redirect to login
+        window.location.href = '/login';
+        return;
+    }
+    
+    // Set user state
+    state.user = user;
+    state.isAuthenticated = true;
+    
+    // Update UI with user info
+    updateUserProfile(user);
+    
+    // Initialize navigation based on user role
     initNavigation();
+    
+    // Hide nav items based on role
+    updateNavigationByRole(user.role);
+    
+    initDarkMode();
     initEventListeners();
     
     // Load dashboard by default
     loadDashboard();
 });
+
+// Update user profile display
+function updateUserProfile(user) {
+    const profileAvatar = document.querySelector('.profile-avatar span');
+    const profileName = document.querySelector('.profile-name');
+    const profileRole = document.querySelector('.profile-role');
+    const pageTitle = document.querySelector('.page-title');
+    
+    if (profileAvatar && user.name) {
+        // Get initials from name
+        const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        profileAvatar.textContent = initials;
+    }
+    
+    if (profileName) {
+        profileName.textContent = user.name || 'User';
+    }
+    
+    if (profileRole) {
+        const roleText = user.role === 'student' ? 'Student' : user.role === 'admin' ? 'Administrator' : 'Teacher';
+        profileRole.textContent = roleText;
+    }
+    
+    if (pageTitle && user.name) {
+        const firstName = user.name.split(' ')[0];
+        pageTitle.textContent = `Hi, ${firstName}!`;
+    }
+}
+
+// Update navigation menu based on user role
+function updateNavigationByRole(role) {
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    if (role === 'student') {
+        // Students can only see Dashboard and Help
+        navItems.forEach(item => {
+            const page = item.getAttribute('data-page');
+            if (page === 'camera' || page === 'analytics' || page === 'settings') {
+                item.style.display = 'none';
+            }
+        });
+    } else {
+        // Admin and Teacher can see all pages
+        navItems.forEach(item => {
+            item.style.display = 'flex';
+        });
+    }
+}
 
 // Dark Mode Functions
 function initDarkMode() {
@@ -66,6 +134,15 @@ function initNavigation() {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             
+            const page = item.getAttribute('data-page');
+            
+            // Check if user has access to this page
+            const user = state.user || JSON.parse(localStorage.getItem('user'));
+            if (!hasPageAccess(user?.role, page)) {
+                console.warn(`Access denied: ${page}`);
+                return;
+            }
+            
             // Remove active class from all items
             navItems.forEach(nav => nav.classList.remove('active'));
             
@@ -73,7 +150,6 @@ function initNavigation() {
             item.classList.add('active');
             
             // Get page name
-            const page = item.getAttribute('data-page');
             state.currentPage = page;
             
             // Route to appropriate page
@@ -82,15 +158,33 @@ function initNavigation() {
     });
 }
 
+// Check if user role has access to page
+function hasPageAccess(role, page) {
+    if (!role) return false;
+    
+    // Student role restrictions
+    if (role === 'student') {
+        const allowedPages = ['dashboard', 'help'];
+        return allowedPages.includes(page);
+    }
+    
+    // Admin and Teacher have access to all pages
+    return true;
+}
+
 // Routing function
 function routeTo(page) {
     const mainContent = document.getElementById('mainContent');
     const pageTitle = document.querySelector('.page-title');
     const pageSubtitle = document.querySelector('.page-subtitle');
     
+    // Get user info for personalization
+    const user = state.user || JSON.parse(localStorage.getItem('user'));
+    const firstName = user?.name ? user.name.split(' ')[0] : 'User';
+    
     switch(page) {
         case 'dashboard':
-            if (pageTitle) pageTitle.textContent = 'Hi, Dr. Johnson!';
+            if (pageTitle) pageTitle.textContent = `Hi, ${firstName}!`;
             if (pageSubtitle) pageSubtitle.textContent = 'Welcome back to your smart classroom';
             loadDashboard();
             break;
@@ -215,7 +309,7 @@ function loadCamera() {
             </div>
             
             <!-- Full-Width Camera Feed Container -->
-            <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
+            <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; height: 400px; width: 100%; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
                 <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
                     <i data-lucide="camera" style="width: 64px; height: 64px; color: #6b7280;"></i>
                     <p style="color: #9ca3af; font-size: 16px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
@@ -271,11 +365,124 @@ function loadCamera() {
     initCameraButton();
     initFullscreenButton();
     
+    // Initialize emotion chart for camera monitor
+    initEmotionChart();
+    
     // Fetch initial data
     fetchDashboardStats();
     
     // Update stats every 5 seconds
     setInterval(fetchDashboardStats, 5000);
+    
+    // Update emotion data every 2 seconds when camera is active
+    setInterval(() => {
+        const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
+        if (isCameraActive) {
+            fetchEmotionData();
+        }
+    }, 2000);
+}
+
+// Fetch emotion data from backend
+async function fetchEmotionData() {
+    try {
+        const response = await fetch('/api/emotions');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            updateEmotionCharts(result.data);
+        }
+    } catch (error) {
+        console.error('Error fetching emotion data:', error);
+    }
+}
+
+// Update emotion charts with new data
+function updateEmotionCharts(emotionData) {
+    const hasData = emotionData && emotionData.total_faces > 0;
+    
+    // Update both dashboard and camera monitor emotion charts
+    if (emotionChart && emotionData.emotion_percentages) {
+        const percentages = emotionData.emotion_percentages;
+        const data = [
+            percentages.Happy || 0,
+            percentages.Surprise || 0,
+            percentages.Neutral || 0,
+            percentages.Sad || 0,
+            percentages.Angry || 0,
+            percentages.Disgust || 0,
+            percentages.Fear || 0
+        ];
+        
+        // Use actual data if available, otherwise show equal placeholder
+        emotionChart.data.datasets[0].data = hasData ? data : [1, 1, 1, 1, 1, 1, 1];
+        emotionChart.options.plugins.tooltip.enabled = hasData;
+        emotionChart.update('none'); // Update without animation for smoother real-time updates
+        
+        // Update legend with data values
+        if (hasData) {
+            const emotionColors = {
+                'Happy': '#10b981',
+                'Surprise': '#22d3ee',
+                'Neutral': '#8b5cf6',
+                'Sad': '#6b7280',
+                'Angry': '#ef4444',
+                'Disgust': '#f97316',
+                'Fear': '#f59e0b'
+            };
+            const legendContainer = document.getElementById('emotionLegend');
+            if (legendContainer) {
+                const emotions = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'];
+                legendContainer.innerHTML = emotions.map((emotion, i) => `
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <div style="width: 10px; height: 10px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
+                        <span style="font-size: 11px; color: var(--text-secondary);">${emotion}: ${Math.round(data[i])}%</span>
+                    </div>
+                `).join('');
+            }
+        }
+    }
+    
+    if (emotionChartMini && emotionData.emotion_percentages) {
+        const percentages = emotionData.emotion_percentages;
+        const data = [
+            percentages.Happy || 0,
+            percentages.Surprise || 0,
+            percentages.Neutral || 0,
+            percentages.Sad || 0,
+            percentages.Angry || 0,
+            percentages.Disgust || 0,
+            percentages.Fear || 0
+        ];
+        
+        // Use actual data if available, otherwise show equal placeholder
+        emotionChartMini.data.datasets[0].data = hasData ? data : [1, 1, 1, 1, 1, 1, 1];
+        emotionChartMini.options.plugins.tooltip.enabled = hasData;
+        emotionChartMini.update('none'); // Update without animation for smoother real-time updates
+        
+        // Update mini legend with data values
+        if (hasData) {
+            const emotionColors = {
+                'Happy': '#10b981',
+                'Surprise': '#22d3ee',
+                'Neutral': '#8b5cf6',
+                'Sad': '#6b7280',
+                'Angry': '#ef4444',
+                'Disgust': '#f97316',
+                'Fear': '#f59e0b'
+            };
+            const legendContainer = document.getElementById('emotionLegendMini');
+            if (legendContainer) {
+                const emotions = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'];
+                legendContainer.innerHTML = emotions.map((emotion, i) => `
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
+                        <span style="font-size: 9px; color: var(--text-secondary);">${emotion}: ${Math.round(data[i])}%</span>
+                    </div>
+                `).join('');
+            }
+        }
+    }
 }
 
 function loadAnalytics() {
@@ -778,10 +985,14 @@ function initAnalyticsPresenceChart(data) {
     const ctx = document.getElementById('analyticsPresenceChart');
     if (!ctx) return;
     
-    // Extract student counts and filter out zero values for display
-    const studentData = data.map(d => ({
+    // Use real studentsDetected count from YOLO detection
+    const currentStudents = classroom_data.current_stats?.studentsDetected || 0;
+    
+    // Build presence data array - use current count for today, 0 for other days
+    const studentData = data.map((d, index) => ({
         date: d.date,
-        students: d.highlyEngaged || 0  // Use highlyEngaged from API or 0
+        // Show current count only for today (last entry), 0 for historical days
+        students: (index === data.length - 1 && currentStudents > 0) ? currentStudents : 0
     }));
     
     const hasData = studentData.some(d => d.students > 0);
@@ -791,7 +1002,7 @@ function initAnalyticsPresenceChart(data) {
         data: {
             labels: studentData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
             datasets: [{
-                label: 'Students Present',
+                label: 'Students Present (YOLO Detection)',
                 data: studentData.map(d => d.students),
                 borderColor: '#3b82f6',
                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -805,13 +1016,18 @@ function initAnalyticsPresenceChart(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15
+                    }
                 },
                 tooltip: {
                     enabled: hasData,
                     callbacks: {
                         label: function(context) {
-                            return hasData ? `Students: ${context.parsed.y}` : 'No data';
+                            return hasData ? `Students Detected: ${context.parsed.y}` : 'No data available';
                         }
                     }
                 }
@@ -824,9 +1040,14 @@ function initAnalyticsPresenceChart(data) {
                         color: 'rgba(0, 0, 0, 0.05)'
                     },
                     ticks: {
+                        stepSize: 5,
                         callback: function(value) {
                             return hasData ? value : '';
                         }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Number of Students'
                     }
                 },
                 x: {

@@ -484,44 +484,6 @@
                 showAlert('An error occurred. Please try again.', 'error');
             }
         });
-
-        // Auto-fill demo credentials and auto-submit (only when not already logged in)
-        (function autoLoginDemo() {
-            try {
-                if (!localStorage.getItem('user')) {
-                    const demoEmail = 'dr.johnson@dlsud.edu.ph';
-                    const demoPassword = 'teacher123';
-                    
-                    // Switch to staff tab
-                    const staffTab = document.querySelector('[data-tab="staff"]');
-                    if (staffTab) {
-                        staffTab.click();
-                    }
-                    
-                    setTimeout(() => {
-                        const emailInput = document.getElementById('staff-email');
-                        const passInput = document.getElementById('staff-password');
-                        const form = document.getElementById('staffLoginForm');
-
-                        if (emailInput && passInput && form) {
-                            // Prefill fields for user convenience
-                            emailInput.value = demoEmail;
-                            passInput.value = demoPassword;
-                            emailInput.setAttribute('autocomplete', 'username');
-                            passInput.setAttribute('autocomplete', 'current-password');
-
-                            // Slight delay so user sees the form fill before redirect
-                            setTimeout(() => {
-                                // Dispatch the submit event so the existing handler runs
-                                form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-                            }, 700);
-                        }
-                    }, 100);
-                }
-            } catch (err) {
-                console.error('Auto-login failed:', err);
-            }
-        })();
     </script>
 </body>
 </html>

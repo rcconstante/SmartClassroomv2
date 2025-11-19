@@ -5,8 +5,11 @@ const defaultSettings = {
     darkMode: false,
     notifications: true,
     engagementThreshold: 50,
-    temperature: 24,
-    humidity: 55,
+    temperature: 0,
+    humidity: 0,
+    lightLevel: 0,
+    airQuality: 0,
+    noiseLevel: 0,
     camera: 0,
     videoQuality: 'high'
 };
@@ -192,6 +195,48 @@ async function loadSettings() {
                                     data-setting="humidity"
                                     min="30"
                                     max="80"
+                                >
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">
+                                    <i data-lucide="sun" style="width: 16px; height: 16px;"></i>
+                                    Light Level (lux)
+                                </label>
+                                <input 
+                                    type="number"
+                                    value="${settings.lightLevel || 500}"
+                                    class="modern-input"
+                                    data-setting="lightLevel"
+                                    min="0"
+                                    max="1000"
+                                >
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">
+                                    <i data-lucide="wind" style="width: 16px; height: 16px;"></i>
+                                    Air Quality (AQI)
+                                </label>
+                                <input 
+                                    type="number"
+                                    value="${settings.airQuality || 100}"
+                                    class="modern-input"
+                                    data-setting="airQuality"
+                                    min="0"
+                                    max="500"
+                                >
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">
+                                    <i data-lucide="volume-2" style="width: 16px; height: 16px;"></i>
+                                    Noise Level (dB)
+                                </label>
+                                <input 
+                                    type="number"
+                                    value="${settings.noiseLevel || 50}"
+                                    class="modern-input"
+                                    data-setting="noiseLevel"
+                                    min="0"
+                                    max="100"
                                 >
                             </div>
                         </div>
