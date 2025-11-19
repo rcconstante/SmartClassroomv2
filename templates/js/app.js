@@ -337,26 +337,6 @@ function loadCamera() {
                 </button>
             </div>
         </div>
-        
-        <!-- Engagement Analysis Grid -->
-        <div class="dashboard-grid" style="margin-bottom: 24px;">
-            <!-- Current Engagement States -->
-            <div class="card card-half">
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">Current Engagement States</h3>
-                        <p class="card-subtitle">Real-time distribution</p>
-                    </div>
-                </div>
-                <div class="chart-container" style="height: 180px;">
-                    <canvas id="emotionChartMini"></canvas>
-                </div>
-                <div id="emotionLegendMini" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; justify-content: center; font-size: 11px;">
-                    <!-- Engagement legend will be populated dynamically -->
-                </div>
-            </div>
-            
-        </div>
     `;
     
     lucide.createIcons();
@@ -364,6 +344,9 @@ function loadCamera() {
     // Initialize camera controls
     initCameraButton();
     initFullscreenButton();
+    
+    // Check if camera is running on backend and restore state
+    checkCameraBackendStatus();
     
     // Initialize emotion chart for camera monitor
     initEmotionChart();
@@ -381,6 +364,70 @@ function loadCamera() {
             fetchEmotionData();
         }
     }, 2000);
+}
+
+// Check if camera is running on backend and restore UI state
+async function checkCameraBackendStatus() {
+    try {
+        const response = await fetch('/api/camera/status');
+        const data = await response.json();
+        
+        if (data.success && data.active) {
+            // Camera is running on backend, restore UI
+            console.log('Camera is running on backend, restoring UI state');
+            
+            const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+            const detectionBadge = document.getElementById('detectionBadge');
+            const cameraControls = document.getElementById('cameraControls');
+            const statusBadge = document.getElementById('cameraStatusBadge');
+            
+            // Hide placeholder
+            if (cameraPlaceholder) {
+                cameraPlaceholder.style.display = 'none';
+            }
+            
+            // Create and display video stream
+            const cameraFeedContainer = document.getElementById('cameraFeedContainer');
+            if (cameraFeedContainer) {
+                let videoElement = document.getElementById('cameraVideoStream');
+                if (!videoElement) {
+                    videoElement = document.createElement('img');
+                    videoElement.id = 'cameraVideoStream';
+                    videoElement.style.width = '100%';
+                    videoElement.style.height = '100%';
+                    videoElement.style.objectFit = 'cover';
+                    videoElement.style.borderRadius = '12px';
+                    videoElement.style.maxHeight = '100%';
+                    cameraFeedContainer.appendChild(videoElement);
+                }
+                videoElement.src = `/api/camera/stream?t=${Date.now()}`;
+                videoElement.style.display = 'block';
+            }
+            
+            // Show detection badge and camera controls
+            if (detectionBadge) {
+                detectionBadge.style.display = 'flex';
+            }
+            
+            if (cameraControls) {
+                cameraControls.style.display = 'flex';
+            }
+            
+            // Update status badge
+            if (statusBadge) {
+                statusBadge.style.background = '#10b981';
+                statusBadge.innerHTML = '<i data-lucide="video" style="width: 12px; height: 12px;"></i> Live';
+            }
+            
+            // Mark camera as active
+            cameraActive = true;
+            localStorage.setItem('cameraActive', 'true');
+            
+            lucide.createIcons();
+        }
+    } catch (error) {
+        console.error('Error checking camera status:', error);
+    }
 }
 
 // Fetch emotion data from backend
@@ -634,6 +681,14 @@ function loadAnalytics() {
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Light (lux)</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Sound</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Gas</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Occupancy</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Happy</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Surprise</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Neutral</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Sad</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Angry</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Disgust</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Fear</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Env Score</th>
                             </tr>
                         </thead>
@@ -674,7 +729,7 @@ async function initAnalytics() {
         
         await populateIoTTable();
         
-        // Start continuous IoT data refresh every 3 seconds for real-time monitoring
+        // Start continuous IoT data refresh every 10 seconds for synchronized logging
         if (!window.iotDataInterval) {
             window.iotDataInterval = setInterval(async () => {
                 try {
@@ -682,8 +737,8 @@ async function initAnalytics() {
                 } catch (error) {
                     console.error('Error updating IoT data:', error);
                 }
-            }, 3000);
-            console.log('✓ Started continuous IoT data refresh (3 second interval)');
+            }, 10000);
+            console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
         const dateRangeSelect = document.getElementById('analyticsDateRange');
@@ -1139,7 +1194,7 @@ async function populateIoTTable() {
         if (!result.success || !result.data || result.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p>No IoT sensor data available. Connect Arduino to start logging.</p>
                     </td>
@@ -1161,6 +1216,14 @@ async function populateIoTTable() {
             };
             
             const envScore = row.environmental_score || 0;
+            const occupancy = row.occupancy !== undefined ? row.occupancy : 'N/A';
+            const happy = row.happy !== undefined ? row.happy.toFixed(1) + '%' : 'N/A';
+            const surprise = row.surprise !== undefined ? row.surprise.toFixed(1) + '%' : 'N/A';
+            const neutral = row.neutral !== undefined ? row.neutral.toFixed(1) + '%' : 'N/A';
+            const sad = row.sad !== undefined ? row.sad.toFixed(1) + '%' : 'N/A';
+            const angry = row.angry !== undefined ? row.angry.toFixed(1) + '%' : 'N/A';
+            const disgust = row.disgust !== undefined ? row.disgust.toFixed(1) + '%' : 'N/A';
+            const fear = row.fear !== undefined ? row.fear.toFixed(1) + '%' : 'N/A';
             
             return `
                 <tr style="border-bottom: 1px solid var(--border-color);">
@@ -1170,6 +1233,14 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.light}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.sound}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px;">${row.gas}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #3b82f6;">${occupancy}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #10b981;">${happy}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #22d3ee;">${surprise}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #8b5cf6;">${neutral}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #6b7280;">${sad}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #ef4444;">${angry}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #f97316;">${disgust}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 12px; color: #f59e0b;">${fear}</td>
                     <td style="padding: 10px; text-align: center;">
                         <span class="badge" style="background: ${getScoreColor(envScore)};">${envScore.toFixed(1)}</span>
                     </td>
@@ -1182,7 +1253,7 @@ async function populateIoTTable() {
         console.error('Error fetching IoT data:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                     <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                     <p>Failed to load IoT sensor data</p>
                 </td>

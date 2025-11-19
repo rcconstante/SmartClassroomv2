@@ -11,6 +11,8 @@ import sys
 import random
 import cv2
 import sqlite3
+import threading
+import time
 
 # Suppress OpenCV warnings for cleaner console output
 os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
@@ -363,7 +365,7 @@ def get_iot_sensor_alerts():
 
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
-    """Start IoT database logging"""
+    """Start IoT database logging and CV data sync"""
     from camera_system.iot_sensor import iot_sensor
     
     if not iot_enabled or not iot_sensor or not iot_sensor.is_connected:
@@ -373,13 +375,18 @@ def start_iot_logging():
         }), 503
     
     result = iot_sensor.start_db_logging()
+    
+    # Start CV data sync thread if logging started successfully
+    if result['success']:
+        start_cv_data_sync()
+    
     status_code = 200 if result['success'] else 400
     return jsonify(result), status_code
 
 
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
-    """Stop IoT database logging"""
+    """Stop IoT database logging and CV data sync"""
     from camera_system.iot_sensor import iot_sensor
     
     if not iot_enabled or not iot_sensor:
@@ -387,6 +394,9 @@ def stop_iot_logging():
             'success': False,
             'message': 'IoT sensor not initialized'
         }), 400
+    
+    # Stop CV data sync thread
+    stop_cv_data_sync()
     
     result = iot_sensor.stop_db_logging()
     status_code = 200 if result['success'] else 400
@@ -604,7 +614,15 @@ def get_iot_history():
                     'light': round(data.get('raw_light', 0), 1),
                     'sound': data.get('raw_sound', 0),
                     'gas': data.get('raw_gas', 0),
-                    'environmental_score': round(data.get('environmental_score', 0), 1)
+                    'environmental_score': round(data.get('environmental_score', 0), 1),
+                    'occupancy': data.get('occupancy', 0),
+                    'happy': round(data.get('happy', 0), 1),
+                    'surprise': round(data.get('surprise', 0), 1),
+                    'neutral': round(data.get('neutral', 0), 1),
+                    'sad': round(data.get('sad', 0), 1),
+                    'angry': round(data.get('angry', 0), 1),
+                    'disgust': round(data.get('disgust', 0), 1),
+                    'fear': round(data.get('fear', 0), 1)
                 })
     except:
         pass
@@ -619,7 +637,15 @@ def get_iot_history():
                 'light': round(data.get('raw_light', 0), 1),
                 'sound': data.get('raw_sound', 0),
                 'gas': data.get('raw_gas', 0),
-                'environmental_score': round(data.get('environmental_score', 0), 1)
+                'environmental_score': round(data.get('environmental_score', 0), 1),
+                'occupancy': data.get('occupancy', 0),
+                'happy': round(data.get('happy', 0), 1),
+                'surprise': round(data.get('surprise', 0), 1),
+                'neutral': round(data.get('neutral', 0), 1),
+                'sad': round(data.get('sad', 0), 1),
+                'angry': round(data.get('angry', 0), 1),
+                'disgust': round(data.get('disgust', 0), 1),
+                'fear': round(data.get('fear', 0), 1)
             })
     
     return jsonify({
@@ -910,12 +936,64 @@ except ImportError as e:
 active_camera_stream = None
 emotion_detector = None
 iot_enabled = False
+cv_data_sync_thread = None
+cv_data_sync_running = False
+
 current_emotion_stats = {
     'total_faces': 0,
     'emotions': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
     'emotion_percentages': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
     'engagement': 0
 }
+
+def cv_data_sync_worker():
+    """Background worker to sync CV data to IoT sensor every 10 seconds"""
+    global cv_data_sync_running, current_emotion_stats, classroom_data
+    from camera_system.iot_sensor import iot_sensor
+    
+    print("[CV Sync] Background worker started - syncing every 10 seconds")
+    
+    while cv_data_sync_running:
+        try:
+            # Only sync if IoT logging is enabled
+            if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
+                # Get current CV data
+                occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
+                emotion_percentages = current_emotion_stats.get('emotion_percentages', {})
+                
+                # Update IoT sensor with CV data
+                iot_sensor.update_cv_data(occupancy, emotion_percentages)
+                
+                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, emotions={list(emotion_percentages.keys())}")
+            
+        except Exception as e:
+            print(f"[CV Sync] Error syncing data: {e}")
+        
+        # Wait 10 seconds before next sync
+        time.sleep(10)
+    
+    print("[CV Sync] Background worker stopped")
+
+def start_cv_data_sync():
+    """Start the CV data sync background thread"""
+    global cv_data_sync_thread, cv_data_sync_running
+    
+    if cv_data_sync_thread and cv_data_sync_thread.is_alive():
+        return  # Already running
+    
+    cv_data_sync_running = True
+    cv_data_sync_thread = threading.Thread(target=cv_data_sync_worker, daemon=True)
+    cv_data_sync_thread.start()
+    print("[CV Sync] Started background sync thread")
+
+def stop_cv_data_sync():
+    """Stop the CV data sync background thread"""
+    global cv_data_sync_running
+    
+    cv_data_sync_running = False
+    if cv_data_sync_thread:
+        cv_data_sync_thread.join(timeout=2)
+    print("[CV Sync] Stopped background sync thread")
 
 # Initialize IoT sensors (optional - won't fail if not available)
 if CAMERA_SYSTEM_AVAILABLE and initialize_iot:

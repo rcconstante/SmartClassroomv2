@@ -62,7 +62,15 @@ class IoTSensorReader:
             'raw_humidity': None,
             'raw_light': None,
             'raw_sound': None,
-            'raw_gas': None
+            'raw_gas': None,
+            'occupancy': 0,
+            'happy': 0,
+            'surprise': 0,
+            'neutral': 0,
+            'sad': 0,
+            'angry': 0,
+            'disgust': 0,
+            'fear': 0
         }
         
         # Calibration ranges for normalization
@@ -394,8 +402,8 @@ class IoTSensorReader:
                                         INSERT INTO sensor_data 
                                         (timestamp, session_id, temperature, humidity, light, sound, gas, 
                                          environmental_score, temperature_norm, humidity_norm, light_norm, 
-                                         sound_norm, gas_norm)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                         sound_norm, gas_norm, occupancy, happy, surprise, neutral, sad, angry, disgust, fear)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     ''', (
                                         self.current_data['timestamp'].isoformat(),
                                         self.db_session_id,
@@ -409,7 +417,15 @@ class IoTSensorReader:
                                         round(self.current_data.get('humidity', 0), 1),
                                         round(self.current_data.get('light', 0), 1),
                                         round(self.current_data.get('sound', 0), 1),
-                                        round(self.current_data.get('gas', 0), 1)
+                                        round(self.current_data.get('gas', 0), 1),
+                                        self.current_data.get('occupancy', 0),
+                                        round(self.current_data.get('happy', 0), 1),
+                                        round(self.current_data.get('surprise', 0), 1),
+                                        round(self.current_data.get('neutral', 0), 1),
+                                        round(self.current_data.get('sad', 0), 1),
+                                        round(self.current_data.get('angry', 0), 1),
+                                        round(self.current_data.get('disgust', 0), 1),
+                                        round(self.current_data.get('fear', 0), 1)
                                     ))
                                     self.db_connection.commit()
                                     
@@ -463,6 +479,23 @@ class IoTSensorReader:
     def get_current_data(self) -> Dict:
         """Get the most recent sensor readings"""
         return self.current_data.copy()
+    
+    def update_cv_data(self, occupancy: int, emotion_percentages: Dict):
+        """
+        Update computer vision data for logging
+        
+        Args:
+            occupancy: Number of students detected
+            emotion_percentages: Dictionary with emotion percentages (Happy, Surprise, Neutral, Sad, Angry, Disgust, Fear)
+        """
+        self.current_data['occupancy'] = occupancy
+        self.current_data['happy'] = emotion_percentages.get('Happy', 0)
+        self.current_data['surprise'] = emotion_percentages.get('Surprise', 0)
+        self.current_data['neutral'] = emotion_percentages.get('Neutral', 0)
+        self.current_data['sad'] = emotion_percentages.get('Sad', 0)
+        self.current_data['angry'] = emotion_percentages.get('Angry', 0)
+        self.current_data['disgust'] = emotion_percentages.get('Disgust', 0)
+        self.current_data['fear'] = emotion_percentages.get('Fear', 0)
     
     def get_status(self) -> Dict:
         """Get sensor system status"""
@@ -520,7 +553,15 @@ class IoTSensorReader:
                     humidity_norm REAL,
                     light_norm REAL,
                     sound_norm REAL,
-                    gas_norm REAL
+                    gas_norm REAL,
+                    occupancy INTEGER DEFAULT 0,
+                    happy REAL DEFAULT 0,
+                    surprise REAL DEFAULT 0,
+                    neutral REAL DEFAULT 0,
+                    sad REAL DEFAULT 0,
+                    angry REAL DEFAULT 0,
+                    disgust REAL DEFAULT 0,
+                    fear REAL DEFAULT 0
                 )
             ''')
             
