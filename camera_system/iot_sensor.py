@@ -689,7 +689,9 @@ class IoTSensorReader:
             # Query all data
             cursor = self.db_connection.cursor()
             cursor.execute('''
-                SELECT timestamp, temperature, humidity, light, sound, gas, environmental_score
+                SELECT timestamp, temperature, humidity, light, sound, gas, 
+                       environmental_score, occupancy, happy, surprise, neutral, 
+                       sad, angry, disgust, fear
                 FROM sensor_data
                 WHERE session_id = ?
                 ORDER BY timestamp
@@ -700,7 +702,9 @@ class IoTSensorReader:
             # Write to CSV
             with open(output_file, 'w', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'temperature', 'humidity', 'light', 'sound', 'gas', 'environmental_score'])
+                writer.writerow(['timestamp', 'temperature', 'humidity', 'light', 'sound', 'gas', 
+                               'environmental_score', 'occupancy', 'happy', 'surprise', 'neutral', 
+                               'sad', 'angry', 'disgust', 'fear'])
                 writer.writerows(rows)
             
             print(f"[IoT] ✓ Exported {len(rows)} records to {output_file}")

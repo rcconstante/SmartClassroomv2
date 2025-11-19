@@ -388,6 +388,11 @@ async function checkCameraBackendStatus() {
                 return;
             }
             
+            // Auto-start camera detection - no manual start needed
+            console.log('Auto-starting camera detection from backend stream');
+            cameraActive = true;
+            localStorage.setItem('cameraActive', 'true');
+            
             // Hide placeholder
             if (cameraPlaceholder) {
                 cameraPlaceholder.style.display = 'none';
@@ -540,26 +545,6 @@ function updateEmotionCharts(emotionData) {
 function loadAnalytics() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = `
-        <!-- Analytics Controls -->
-        <div style="display: flex; gap: 16px; margin-bottom: 24px; align-items: center; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px;">
-                <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary);">Date Range</label>
-                <select id="analyticsDateRange" class="form-select" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 14px;">
-                    <option value="7">Last 7 Days</option>
-                    <option value="14">Last 14 Days</option>
-                    <option value="30" selected>Last 30 Days</option>
-                    <option value="90">Last 90 Days</option>
-                </select>
-            </div>
-            <div style="flex: 1; min-width: 200px;">
-                <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary);">Export Data</label>
-                <button id="exportAnalyticsBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">
-                    <i data-lucide="download"></i>
-                    Export as CSV
-                </button>
-            </div>
-        </div>
-        
         <!-- IoT Logging Status Bar -->
         <div id="iotLoggingStatus" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; animation: pulse 2s ease-in-out infinite;"></div>

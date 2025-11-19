@@ -125,7 +125,7 @@ function updateDashboardUI() {
     const distractedEl = document.getElementById('distracted');
     const tiredEl = document.getElementById('tired');
     
-    if (totalStudentsEl) totalStudentsEl.textContent = dashboardData.totalStudents;
+    if (totalStudentsEl) totalStudentsEl.textContent = dashboardData.studentsDetected || 0;
     if (avgEngagementEl) avgEngagementEl.innerHTML = `${dashboardData.avgEngagement}<span style="font-size: 20px; color: var(--text-secondary);">%</span>`;
     
     // Only update students detected if camera is active
@@ -347,17 +347,6 @@ function loadDashboard() {
     
     // Update IoT environment data every 10 seconds
     setInterval(fetchIoTEnvironmentData, 10000);
-    
-    // Auto-start camera if it was active before page change
-    if (localStorage.getItem('cameraActive') === 'true') {
-        setTimeout(() => {
-            const startBtn = document.getElementById('startCameraBtn');
-            if (startBtn && !cameraActive) {
-                console.log('Auto-starting camera from previous session');
-                startCamera();
-            }
-        }, 1000);
-    }
     
     // Update emotion data every 2 seconds when camera is active
     setInterval(() => {
