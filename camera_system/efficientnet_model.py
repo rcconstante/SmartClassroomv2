@@ -34,7 +34,7 @@ class EfficientNetEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/fer2013-bestmodel-new.pth'):
+    def __init__(self, model_path='static/model/final_effnet_fer_state.pth'):
         """
         Initialize EfficientNet emotion detector
         
@@ -59,14 +59,14 @@ class EfficientNetEmotionDetector:
         try:
             print(f"[EfficientNet] Loading model...")
             
-            model_path = 'static/model/fer2013-bestmodel-new.pth'
+            model_path = 'static/model/final_effnet_fer_state.pth'
             
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found: {model_path}")
             
             print(f"[EfficientNet] Loading PyTorch model from: {model_path}")
             
-            self.model = models.efficientnet_b0(pretrained=False)
+            self.model = models.efficientnet_b0(weights=None)
             num_features = self.model.classifier[1].in_features
             self.model.classifier[1] = nn.Linear(num_features, len(self.EMOTION_LABELS))
             
