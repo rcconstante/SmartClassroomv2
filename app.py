@@ -616,13 +616,13 @@ def get_iot_history():
                     'gas': data.get('raw_gas', 0),
                     'environmental_score': round(data.get('environmental_score', 0), 1),
                     'occupancy': data.get('occupancy', 0),
-                    'happy': round(data.get('happy', 0), 1),
-                    'surprise': round(data.get('surprise', 0), 1),
-                    'neutral': round(data.get('neutral', 0), 1),
-                    'sad': round(data.get('sad', 0), 1),
-                    'angry': round(data.get('angry', 0), 1),
-                    'disgust': round(data.get('disgust', 0), 1),
-                    'fear': round(data.get('fear', 0), 1)
+                    'happy': int(data.get('happy', 0)),
+                    'surprise': int(data.get('surprise', 0)),
+                    'neutral': int(data.get('neutral', 0)),
+                    'sad': int(data.get('sad', 0)),
+                    'angry': int(data.get('angry', 0)),
+                    'disgust': int(data.get('disgust', 0)),
+                    'fear': int(data.get('fear', 0))
                 })
     except:
         pass
@@ -639,13 +639,13 @@ def get_iot_history():
                 'gas': data.get('raw_gas', 0),
                 'environmental_score': round(data.get('environmental_score', 0), 1),
                 'occupancy': data.get('occupancy', 0),
-                'happy': round(data.get('happy', 0), 1),
-                'surprise': round(data.get('surprise', 0), 1),
-                'neutral': round(data.get('neutral', 0), 1),
-                'sad': round(data.get('sad', 0), 1),
-                'angry': round(data.get('angry', 0), 1),
-                'disgust': round(data.get('disgust', 0), 1),
-                'fear': round(data.get('fear', 0), 1)
+                'happy': int(data.get('happy', 0)),
+                'surprise': int(data.get('surprise', 0)),
+                'neutral': int(data.get('neutral', 0)),
+                'sad': int(data.get('sad', 0)),
+                'angry': int(data.get('angry', 0)),
+                'disgust': int(data.get('disgust', 0)),
+                'fear': int(data.get('fear', 0))
             })
     
     return jsonify({
@@ -959,12 +959,13 @@ def cv_data_sync_worker():
             if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
                 # Get current CV data
                 occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
-                emotion_percentages = current_emotion_stats.get('emotion_percentages', {})
+                # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
+                emotion_counts = current_emotion_stats.get('emotions', {})
                 
-                # Update IoT sensor with CV data
-                iot_sensor.update_cv_data(occupancy, emotion_percentages)
+                # Update IoT sensor with CV data (counts, not percentages)
+                iot_sensor.update_cv_data(occupancy, emotion_counts)
                 
-                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, emotions={list(emotion_percentages.keys())}")
+                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, emotion_counts={emotion_counts}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")

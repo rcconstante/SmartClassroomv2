@@ -419,13 +419,13 @@ class IoTSensorReader:
                                         round(self.current_data.get('sound', 0), 1),
                                         round(self.current_data.get('gas', 0), 1),
                                         self.current_data.get('occupancy', 0),
-                                        round(self.current_data.get('happy', 0), 1),
-                                        round(self.current_data.get('surprise', 0), 1),
-                                        round(self.current_data.get('neutral', 0), 1),
-                                        round(self.current_data.get('sad', 0), 1),
-                                        round(self.current_data.get('angry', 0), 1),
-                                        round(self.current_data.get('disgust', 0), 1),
-                                        round(self.current_data.get('fear', 0), 1)
+                                        int(self.current_data.get('happy', 0)),
+                                        int(self.current_data.get('surprise', 0)),
+                                        int(self.current_data.get('neutral', 0)),
+                                        int(self.current_data.get('sad', 0)),
+                                        int(self.current_data.get('angry', 0)),
+                                        int(self.current_data.get('disgust', 0)),
+                                        int(self.current_data.get('fear', 0))
                                     ))
                                     self.db_connection.commit()
                                     
@@ -480,22 +480,24 @@ class IoTSensorReader:
         """Get the most recent sensor readings"""
         return self.current_data.copy()
     
-    def update_cv_data(self, occupancy: int, emotion_percentages: Dict):
+    def update_cv_data(self, occupancy: int, emotion_counts: Dict):
         """
         Update computer vision data for logging
         
         Args:
             occupancy: Number of students detected
-            emotion_percentages: Dictionary with emotion percentages (Happy, Surprise, Neutral, Sad, Angry, Disgust, Fear)
+            emotion_counts: Dictionary with emotion COUNTS (not percentages) - each face adds 1 to its dominant emotion
+                          e.g., {'Happy': 2, 'Neutral': 1, 'Sad': 0, ...}
         """
         self.current_data['occupancy'] = occupancy
-        self.current_data['happy'] = emotion_percentages.get('Happy', 0)
-        self.current_data['surprise'] = emotion_percentages.get('Surprise', 0)
-        self.current_data['neutral'] = emotion_percentages.get('Neutral', 0)
-        self.current_data['sad'] = emotion_percentages.get('Sad', 0)
-        self.current_data['angry'] = emotion_percentages.get('Angry', 0)
-        self.current_data['disgust'] = emotion_percentages.get('Disgust', 0)
-        self.current_data['fear'] = emotion_percentages.get('Fear', 0)
+        # Store counts directly (integers, not percentages)
+        self.current_data['happy'] = emotion_counts.get('Happy', 0)
+        self.current_data['surprise'] = emotion_counts.get('Surprise', 0)
+        self.current_data['neutral'] = emotion_counts.get('Neutral', 0)
+        self.current_data['sad'] = emotion_counts.get('Sad', 0)
+        self.current_data['angry'] = emotion_counts.get('Angry', 0)
+        self.current_data['disgust'] = emotion_counts.get('Disgust', 0)
+        self.current_data['fear'] = emotion_counts.get('Fear', 0)
     
     def get_status(self) -> Dict:
         """Get sensor system status"""
@@ -555,13 +557,13 @@ class IoTSensorReader:
                     sound_norm REAL,
                     gas_norm REAL,
                     occupancy INTEGER DEFAULT 0,
-                    happy REAL DEFAULT 0,
-                    surprise REAL DEFAULT 0,
-                    neutral REAL DEFAULT 0,
-                    sad REAL DEFAULT 0,
-                    angry REAL DEFAULT 0,
-                    disgust REAL DEFAULT 0,
-                    fear REAL DEFAULT 0
+                    happy INTEGER DEFAULT 0,
+                    surprise INTEGER DEFAULT 0,
+                    neutral INTEGER DEFAULT 0,
+                    sad INTEGER DEFAULT 0,
+                    angry INTEGER DEFAULT 0,
+                    disgust INTEGER DEFAULT 0,
+                    fear INTEGER DEFAULT 0
                 )
             ''')
             

@@ -380,6 +380,13 @@ async function checkCameraBackendStatus() {
             const detectionBadge = document.getElementById('detectionBadge');
             const cameraControls = document.getElementById('cameraControls');
             const statusBadge = document.getElementById('cameraStatusBadge');
+            const cameraFeedContainer = document.getElementById('cameraFeedContainer');
+            
+            // Ensure camera container exists before proceeding
+            if (!cameraFeedContainer) {
+                console.warn('Camera feed container not found, skipping restoration');
+                return;
+            }
             
             // Hide placeholder
             if (cameraPlaceholder) {
@@ -387,22 +394,19 @@ async function checkCameraBackendStatus() {
             }
             
             // Create and display video stream
-            const cameraFeedContainer = document.getElementById('cameraFeedContainer');
-            if (cameraFeedContainer) {
-                let videoElement = document.getElementById('cameraVideoStream');
-                if (!videoElement) {
-                    videoElement = document.createElement('img');
-                    videoElement.id = 'cameraVideoStream';
-                    videoElement.style.width = '100%';
-                    videoElement.style.height = '100%';
-                    videoElement.style.objectFit = 'cover';
-                    videoElement.style.borderRadius = '12px';
-                    videoElement.style.maxHeight = '100%';
-                    cameraFeedContainer.appendChild(videoElement);
-                }
-                videoElement.src = `/api/camera/stream?t=${Date.now()}`;
-                videoElement.style.display = 'block';
+            let videoElement = document.getElementById('cameraVideoStream');
+            if (!videoElement) {
+                videoElement = document.createElement('img');
+                videoElement.id = 'cameraVideoStream';
+                videoElement.style.width = '100%';
+                videoElement.style.height = '100%';
+                videoElement.style.objectFit = 'cover';
+                videoElement.style.borderRadius = '12px';
+                videoElement.style.maxHeight = '100%';
+                cameraFeedContainer.appendChild(videoElement);
             }
+            videoElement.src = `/api/camera/stream?t=${Date.now()}`;
+            videoElement.style.display = 'block';
             
             // Show detection badge and camera controls
             if (detectionBadge) {
@@ -427,6 +431,7 @@ async function checkCameraBackendStatus() {
         }
     } catch (error) {
         console.error('Error checking camera status:', error);
+        // Don't throw error, just log it - camera might not be available
     }
 }
 
@@ -1217,13 +1222,14 @@ async function populateIoTTable() {
             
             const envScore = row.environmental_score || 0;
             const occupancy = row.occupancy !== undefined ? row.occupancy : 'N/A';
-            const happy = row.happy !== undefined ? row.happy.toFixed(1) + '%' : 'N/A';
-            const surprise = row.surprise !== undefined ? row.surprise.toFixed(1) + '%' : 'N/A';
-            const neutral = row.neutral !== undefined ? row.neutral.toFixed(1) + '%' : 'N/A';
-            const sad = row.sad !== undefined ? row.sad.toFixed(1) + '%' : 'N/A';
-            const angry = row.angry !== undefined ? row.angry.toFixed(1) + '%' : 'N/A';
-            const disgust = row.disgust !== undefined ? row.disgust.toFixed(1) + '%' : 'N/A';
-            const fear = row.fear !== undefined ? row.fear.toFixed(1) + '%' : 'N/A';
+            // Display emotion COUNTS (not percentages) - each is an integer representing number of faces
+            const happy = row.happy !== undefined ? row.happy : 'N/A';
+            const surprise = row.surprise !== undefined ? row.surprise : 'N/A';
+            const neutral = row.neutral !== undefined ? row.neutral : 'N/A';
+            const sad = row.sad !== undefined ? row.sad : 'N/A';
+            const angry = row.angry !== undefined ? row.angry : 'N/A';
+            const disgust = row.disgust !== undefined ? row.disgust : 'N/A';
+            const fear = row.fear !== undefined ? row.fear : 'N/A';
             
             return `
                 <tr style="border-bottom: 1px solid var(--border-color);">
