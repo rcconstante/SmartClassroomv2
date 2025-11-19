@@ -730,7 +730,8 @@ def get_engagement_trends():
                 'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
                 'avgEngagement': current_engagement if i == 0 else 0,
                 'highlyEngaged': round(engaged_pct) if i == 0 else 0,
-                'disengaged': round(disengaged_pct) if i == 0 else 0
+                'disengaged': round(disengaged_pct) if i == 0 else 0,
+                'studentsPresent': current_students if i == 0 else 0
             }
             for i in range(days - 1, -1, -1)
         ]

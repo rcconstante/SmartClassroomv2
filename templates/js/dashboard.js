@@ -572,8 +572,8 @@ function initOccupancyChart() {
 function updateOccupancyChart() {
     if (!occupancyChart) return;
     
-    // Get current student count from YOLO detection
-    const currentStudents = classroom_data['current_stats']['studentsDetected'] || 0;
+    // Get current student count from YOLO detection (use dashboardData from API)
+    const currentStudents = dashboardData.studentsDetected || 0;
     
     // Add to history
     occupancyHistory.push({
@@ -1078,9 +1078,10 @@ function handleFullscreenChange() {
             }
         } else {
             // Exit fullscreen - restore to original size
-            cameraFeedContainer.style.height = '400px';
+            cameraFeedContainer.style.height = '';
             cameraFeedContainer.style.width = '100%';
             cameraFeedContainer.style.maxHeight = '';
+            cameraFeedContainer.style.aspectRatio = '16/9';
             
             // Reset video fit to cover
             const videoElement = document.getElementById('cameraVideoStream');

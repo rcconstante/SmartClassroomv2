@@ -348,7 +348,7 @@ function loadCamera() {
                         <p class="card-subtitle">Real-time distribution</p>
                     </div>
                 </div>
-                <div class="chart-container" style="height: 250px;">
+                <div class="chart-container" style="height: 180px;">
                     <canvas id="emotionChartMini"></canvas>
                 </div>
                 <div id="emotionLegendMini" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 20px; justify-content: center; font-size: 11px;">
@@ -674,7 +674,7 @@ async function initAnalytics() {
         
         await populateIoTTable();
         
-        // Start continuous IoT data refresh every 10 seconds
+        // Start continuous IoT data refresh every 3 seconds for real-time monitoring
         if (!window.iotDataInterval) {
             window.iotDataInterval = setInterval(async () => {
                 try {
@@ -682,8 +682,8 @@ async function initAnalytics() {
                 } catch (error) {
                     console.error('Error updating IoT data:', error);
                 }
-            }, 10000);
-            console.log('✓ Started continuous IoT data refresh (10 second interval)');
+            }, 3000);
+            console.log('✓ Started continuous IoT data refresh (3 second interval)');
         }
         
         const dateRangeSelect = document.getElementById('analyticsDateRange');
@@ -985,14 +985,14 @@ function initAnalyticsPresenceChart(data) {
     const ctx = document.getElementById('analyticsPresenceChart');
     if (!ctx) return;
     
-    // Use real studentsDetected count from YOLO detection
-    const currentStudents = classroom_data.current_stats?.studentsDetected || 0;
+    // Extract students detected data from the API response
+    const hasStudentData = data && data.some(d => d.studentsPresent !== undefined && d.studentsPresent > 0);
+    const currentStudents = hasStudentData ? data[data.length - 1].studentsPresent : 0;
     
-    // Build presence data array - use current count for today, 0 for other days
-    const studentData = data.map((d, index) => ({
+    // Build presence data array - use studentsPresent from API data
+    const studentData = data.map((d) => ({
         date: d.date,
-        // Show current count only for today (last entry), 0 for historical days
-        students: (index === data.length - 1 && currentStudents > 0) ? currentStudents : 0
+        students: d.studentsPresent || 0
     }));
     
     const hasData = studentData.some(d => d.students > 0);
