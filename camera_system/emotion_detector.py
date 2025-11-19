@@ -15,13 +15,13 @@ class EmotionDetector:
     """Detects student emotions using YOLO11 face detection + PyTorch EfficientNet emotion recognition"""
     
     def __init__(self, 
-                 emotion_model_path='static/model/fer2013-bestmodel-new.pth',
+                 emotion_model_path='static/model/model_combined_best.weights.h5',
                  yolo_model_path='static/model/best_yolo11_face.pt'):
         """
         Initialize emotion detector with YOLO face detection + EfficientNet emotion recognition
         
         Args:
-            emotion_model_path: Path to the trained PyTorch EfficientNet emotion model (.pth)
+            emotion_model_path: Path to the trained PyTorch EfficientNet emotion model (.h5)
             yolo_model_path: Path to the trained YOLO11 face detection model (.pt)
         """
         self.efficientnet_detector = None

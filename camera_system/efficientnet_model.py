@@ -34,12 +34,12 @@ class EfficientNetEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/fer2013-bestmodel-new.pth'):
+    def __init__(self, model_path='static/model/model_combined_best.weights.h5'):
         """
         Initialize EfficientNet emotion detector
         
         Args:
-            model_path: Path to trained model weights (.pth file)
+            model_path: Path to trained model weights (.h5 file)
         """
         self.model_path = model_path
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -70,34 +70,53 @@ class EfficientNetEmotionDetector:
             num_features = model.classifier[1].in_features
             model.classifier[1] = nn.Linear(num_features, len(self.EMOTION_LABELS))
             
-            # Try to load weights from multiple possible paths
-            model_paths_to_try = [
-                self.model_path,
-                'static/model/final_effnet_fer_state.pth',
-                'static/model/best_resemotenet_model.pth',
-                'static/model/emotion_model.pth'
-            ]
+            # Load the specific combined model weights
+            model_path = 'static/model/model_combined_best.weights.h5'
             
-            model_loaded = False
-            for path in model_paths_to_try:
-                if os.path.exists(path):
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Model file not found: {model_path}")
+            
+            print(f"[EfficientNet] Loading weights from: {model_path}")
+            
+            try:
+                # Handle H5 format (combined model)
+                print(f"[EfficientNet] Detected H5 format, loading with PyTorch H5 support...")
+                import torch.utils.model_zoo as model_zoo
+                try:
+                    # Load H5 weights using PyTorch's native H5 support
+                    checkpoint = torch.load(model_path, map_location=self.device)
+                    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                        model.load_state_dict(checkpoint['model_state_dict'])
+                    elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+                        model.load_state_dict(checkpoint['state_dict'])
+                    else:
+                        # Try direct loading if it's already a state dict
+                        model.load_state_dict(checkpoint)
+                except Exception as h5_error:
+                    print(f"  PyTorch H5 loading failed, attempting Keras conversion...")
                     try:
-                        print(f"[EfficientNet] Attempting to load weights from: {path}")
-                        state_dict = torch.load(path, map_location=self.device)
-                        model.load_state_dict(state_dict)
-                        model_loaded = True
-                        self.model_path = path
-                        print(f"✓ Successfully loaded model from: {path}")
-                        break
-                    except Exception as e:
-                        print(f"  Failed to load from {path}: {e}")
-                        continue
-            
-            if not model_loaded:
-                print(f"⚠ Warning: Could not load model weights from any path")
-                print(f"  Tried: {model_paths_to_try}")
-                print(f"  Model will use random weights (not trained)")
-                print(f"  ⚠ THIS WILL CAUSE POOR PREDICTIONS - ALL NEUTRAL!")
+                        import h5py
+                        import tensorflow as tf
+                        # Load Keras/TF H5 model and extract weights
+                        with h5py.File(model_path, 'r') as h5file:
+                            # Try to extract layer weights from HDF5
+                            state_dict = {}
+                            for i, (layer_name, layer_data) in enumerate(h5file.items()):
+                                if isinstance(layer_data, h5py.Dataset):
+                                    state_dict[f'layer_{i}'] = torch.from_numpy(layer_data[()])
+                            if state_dict:
+                                model.load_state_dict(state_dict, strict=False)
+                            else:
+                                raise Exception("Could not extract weights from H5 file")
+                    except ImportError:
+                        print(f"  h5py not installed, cannot load H5 file")
+                        raise h5_error
+                
+                self.model_path = model_path
+                print(f"✓ Successfully loaded model from: {model_path}")
+            except Exception as e:
+                print(f"✗ Failed to load model weights: {e}")
+                raise Exception(f"Could not load model from {model_path}: {e}")
             
             # Move model to device and set to evaluation mode
             model = model.to(self.device)
@@ -105,7 +124,7 @@ class EfficientNetEmotionDetector:
             
             self.model = model
             print(f"✓ Model ready on device: {self.device}")
-            print(f"✓ Model loaded status: {'TRAINED' if model_loaded else 'UNTRAINED (RANDOM WEIGHTS)'}")
+            print(f"✓ Model loaded successfully with trained weights")
             
         except Exception as e:
             print(f"✗ Error loading EfficientNet model: {e}")

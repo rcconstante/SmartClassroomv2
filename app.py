@@ -707,7 +707,6 @@ def get_settings():
     """Get user settings"""
     settings = {
         'darkMode': False,
-        'notifications': True,
         'engagementThreshold': 50,
         'temperature': 24,
         'humidity': 55,

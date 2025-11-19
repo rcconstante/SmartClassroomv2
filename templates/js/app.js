@@ -779,7 +779,6 @@ async function initAnalytics() {
         
     } catch (error) {
         console.error('Error initializing analytics:', error);
-        showNotification('Failed to load analytics data', 'error');
     }
 }
 
@@ -819,7 +818,7 @@ async function exportAnalyticsCSV(days, includeIoT = true) {
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {
-            showNotification('No data available to export', 'warning');
+            console.warn('No data available to export');
             return;
         }
         
@@ -870,10 +869,10 @@ async function exportAnalyticsCSV(days, includeIoT = true) {
         link.click();
         document.body.removeChild(link);
         
-        showNotification('Analytics data exported successfully!', 'success');
+        console.log('Analytics data exported successfully!');
     } catch (error) {
         console.error('Error exporting analytics:', error);
-        showNotification('Failed to export analytics data', 'error');
+        console.error('Failed to export analytics data');
     }
 }
 
@@ -1260,7 +1259,7 @@ async function exportIoTDataCSV() {
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {
-            showNotification('No IoT data available to export', 'warning');
+            console.warn('No IoT data available to export');
             return;
         }
         
@@ -1294,10 +1293,10 @@ async function exportIoTDataCSV() {
         link.click();
         document.body.removeChild(link);
         
-        showNotification('IoT data exported successfully!', 'success');
+        console.log('IoT data exported successfully!');
     } catch (error) {
         console.error('Error exporting IoT data:', error);
-        showNotification('Failed to export IoT data', 'error');
+        console.error('Failed to export IoT data');
     }
 }
 
@@ -1511,83 +1510,6 @@ function searchHelpContent(query) {
     });
 }
 
-// Global notification function (used across all pages)
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 20px;
-        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        font-weight: 500;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info';
-    notification.innerHTML = `
-        <i data-lucide="${icon}" style="width: 20px; height: 20px;"></i>
-        <span>${message}</span>
-    `;
-    
-    document.body.appendChild(notification);
-    lucide.createIcons();
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-}
-
-// Add notification animation styles if not already present
-if (!document.getElementById('notification-animations-style')) {
-    const notificationStyle = document.createElement('style');
-    notificationStyle.id = 'notification-animations-style';
-    notificationStyle.textContent = `
-        @keyframes slideIn {
-            from {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        @keyframes slideOut {
-            from {
-                transform: translateX(0);
-                opacity: 1;
-            }
-            to {
-                transform: translateX(400px);
-                opacity: 0;
-            }
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.5;
-            }
-        }
-    `;
-    document.head.appendChild(notificationStyle);
-}
-
 // IoT Database Logging Functions
 async function toggleIoTLogging() {
     const btn = document.getElementById('toggleIoTLoggingBtn');
@@ -1608,9 +1530,9 @@ async function toggleIoTLogging() {
                 
                 document.getElementById('iotLoggingStatus').style.display = 'none';
                 
-                showNotification(`Stopped logging: ${result.record_count} records saved`, 'success');
+                console.log(`Stopped logging: ${result.record_count} records saved`);
             } else {
-                showNotification(result.message || 'Failed to stop logging', 'error');
+                console.error(result.message || 'Failed to stop logging');
             }
         } else {
             // Start logging
@@ -1626,16 +1548,15 @@ async function toggleIoTLogging() {
                 document.getElementById('iotDbFile').textContent = result.db_file.split('/').pop();
                 document.getElementById('iotRecordCount').textContent = '0';
                 
-                showNotification('Database logging started', 'success');
+                console.log('Database logging started');
             } else {
-                showNotification(result.message || 'Failed to start logging', 'error');
+                console.error(result.message || 'Failed to start logging');
             }
         }
         
         lucide.createIcons();
     } catch (error) {
         console.error('Error toggling IoT logging:', error);
-        showNotification('Failed to toggle logging', 'error');
     } finally {
         btn.disabled = false;
     }
@@ -1681,7 +1602,7 @@ async function exportCurrentIoTSession() {
         
         if (!response.ok) {
             const error = await response.json();
-            showNotification(error.message || 'Failed to export', 'error');
+            console.error(error.message || 'Failed to export');
             return;
         }
         
@@ -1703,9 +1624,8 @@ async function exportCurrentIoTSession() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        showNotification('CSV exported successfully', 'success');
+        console.log('CSV exported successfully');
     } catch (error) {
         console.error('Error exporting IoT data:', error);
-        showNotification('Failed to export CSV', 'error');
     }
 }

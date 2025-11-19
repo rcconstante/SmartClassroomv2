@@ -3,7 +3,6 @@
 // Default settings
 const defaultSettings = {
     darkMode: false,
-    notifications: true,
     engagementThreshold: 50,
     temperature: 0,
     humidity: 0,
@@ -117,7 +116,6 @@ async function loadSettings() {
                     </div>
                     <div class="settings-card-body">
                         <!-- Dark Mode toggle removed from General Settings by request. Dark mode functions remain available programmatically. -->
-                        ${createModernToggleSetting('notifications', 'Notifications', 'Receive desktop notifications for alerts', settings.notifications, 'bell')}
                     </div>
                 </div>
 

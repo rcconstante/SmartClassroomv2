@@ -841,8 +841,7 @@ async function startCamera() {
         
         lucide.createIcons();
         
-        // Show success notification
-        showNotification('Camera started successfully', 'success');
+        console.log('Camera started successfully');
         
         // Start updating detection stats more frequently
         if (cameraUpdateInterval) clearInterval(cameraUpdateInterval);
@@ -872,7 +871,6 @@ async function startCamera() {
         
         lucide.createIcons();
         
-        showNotification(error.message, 'error');
         console.error('Camera error:', error);
     }
 }
@@ -961,7 +959,7 @@ async function stopCamera() {
         
         lucide.createIcons();
         
-        showNotification('Camera stopped', 'info');
+        console.log('Camera stopped');
         
         // Revert to normal update interval
         if (cameraUpdateInterval) {
@@ -976,7 +974,6 @@ async function stopCamera() {
         }
         lucide.createIcons();
         
-        showNotification(error.message, 'error');
         console.error('Stop camera error:', error);
     }
 }
@@ -1086,44 +1083,6 @@ function handleFullscreenChange() {
     
     // Reinitialize icons after fullscreen change
     lucide.createIcons();
-}
-
-// Show notification
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 20px;
-        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        font-weight: 500;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info';
-    notification.innerHTML = `
-        <i data-lucide="${icon}" style="width: 20px; height: 20px;"></i>
-        <span>${message}</span>
-    `;
-    
-    document.body.appendChild(notification);
-    lucide.createIcons();
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
 }
 
 // Add CSS animations and fullscreen styles
