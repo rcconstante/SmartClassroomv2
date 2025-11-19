@@ -34,7 +34,7 @@ class EfficientNetEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/final_effnet_fer_state.pth'):
+    def __init__(self, model_path='static/model/fer2013-bestmodel-new.pth'):
         """
         Initialize EfficientNet emotion detector
         

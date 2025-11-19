@@ -1273,4 +1273,4 @@ function updateLSTMChartSimulation() {
     // LSTM functionality removed - no model available yet
     return;
 }
-
+}

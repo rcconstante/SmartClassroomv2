@@ -1,6 +1,6 @@
 """
 Facial Emotion Detection Module
-Uses PyTorch EfficientNet model to detect student emotions in real-time
+Uses YOLO11 for face detection and PyTorch EfficientNet for emotion recognition
 """
 
 import cv2
@@ -12,34 +12,39 @@ import os
 EMOTION_LABELS = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear']
 
 class EmotionDetector:
-    """Detects student emotions using PyTorch EfficientNet model with FER-2013 labels"""
+    """Detects student emotions using YOLO11 face detection + PyTorch EfficientNet emotion recognition"""
     
-    def __init__(self, model_path='static/model/final_effnet_fer_state.pth'):
+    def __init__(self, 
+                 emotion_model_path='static/model/fer2013-bestmodel-new.pth',
+                 yolo_model_path='static/model/best_yolo11_face.pt'):
         """
-        Initialize emotion detector with PyTorch EfficientNet
+        Initialize emotion detector with YOLO face detection + EfficientNet emotion recognition
         
         Args:
-            model_path: Path to the trained PyTorch model (.pth)
+            emotion_model_path: Path to the trained PyTorch EfficientNet emotion model (.pth)
+            yolo_model_path: Path to the trained YOLO11 face detection model (.pt)
         """
         self.efficientnet_detector = None
-        self.model_path = model_path
-        self.face_cascade = None
+        self.yolo_detector = None
+        self.emotion_model_path = emotion_model_path
+        self.yolo_model_path = yolo_model_path
+        self.face_cascade = None  # Kept for backward compatibility
         self.emotion_counts = {emotion: 0 for emotion in EMOTION_LABELS}
         self.input_shape = (48, 48)  # EfficientNet FER input size
         
-        # Load PyTorch model and face detector
+        # Load both models
         self._load_efficientnet_model()
-        self._load_face_detector()
+        self._load_yolo_detector()
     
     def _load_efficientnet_model(self):
-        """Load the trained PyTorch EfficientNet model"""
+        """Load the trained PyTorch EfficientNet emotion model"""
         try:
             # Import EfficientNet detector
             from camera_system.efficientnet_model import EfficientNetEmotionDetector
             
             # Initialize PyTorch model
-            self.efficientnet_detector = EfficientNetEmotionDetector(model_path=self.model_path)
-            print(f"✓ EfficientNet Emotion Model loaded: {self.model_path}")
+            self.efficientnet_detector = EfficientNetEmotionDetector(model_path=self.emotion_model_path)
+            print(f"✓ EfficientNet Emotion Model loaded: {self.emotion_model_path}")
             print(f"Model expects input shape: {self.input_shape}")
             print(f"Using device: {self.efficientnet_detector.device}")
                 
@@ -47,6 +52,23 @@ class EmotionDetector:
             print(f"Error loading EfficientNet emotion detection model: {e}")
             print("Emotion detection will use fallback mode")
             self.efficientnet_detector = None
+    
+    def _load_yolo_detector(self):
+        """Load YOLO11 face detection model"""
+        try:
+            from camera_system.yolo_face_detector import YOLOFaceDetector
+            
+            self.yolo_detector = YOLOFaceDetector(model_path=self.yolo_model_path)
+            if self.yolo_detector.is_loaded:
+                print(f"✓ YOLO11 Face Detector loaded: {self.yolo_model_path}")
+            else:
+                print("⚠ YOLO face detector not available, falling back to Haar Cascade")
+                self._load_face_detector()
+                
+        except Exception as e:
+            print(f"⚠ Could not load YOLO detector: {e}")
+            print("Falling back to Haar Cascade face detector")
+            self._load_face_detector()
     
     def _load_face_detector(self):
         """Load Haar Cascade face detector"""
@@ -66,7 +88,7 @@ class EmotionDetector:
     
     def detect_faces(self, frame) -> List[Tuple[int, int, int, int]]:
         """
-        Detect faces in frame using Haar Cascade
+        Detect faces in frame using YOLO11 (primary) or Haar Cascade (fallback)
         
         Args:
             frame: Input image frame (BGR format)
@@ -74,6 +96,22 @@ class EmotionDetector:
         Returns:
             List of face rectangles (x, y, w, h)
         """
+        # Try YOLO first
+        if self.yolo_detector and self.yolo_detector.is_loaded:
+            try:
+                yolo_faces, count = self.yolo_detector.detect_faces(frame, conf_threshold=0.5)
+                # Convert YOLO format (x1, y1, x2, y2) to Haar format (x, y, w, h)
+                faces = []
+                for face in yolo_faces:
+                    x1, y1, x2, y2 = face['bbox']
+                    w = x2 - x1
+                    h = y2 - y1
+                    faces.append((x1, y1, w, h))
+                return faces
+            except Exception as e:
+                print(f"[YOLO] Error during detection, falling back to Haar Cascade: {e}")
+        
+        # Fallback to Haar Cascade
         if self.face_cascade is None:
             return []
         
@@ -236,6 +274,27 @@ class EmotionDetector:
         
         engagement = (weighted_sum / total_faces) * 100
         return round(engagement, 2)
+    
+    def get_occupancy_count(self, frame) -> int:
+        """
+        Get student occupancy count using YOLO face detection
+        This is independent of emotion detection
+        
+        Args:
+            frame: Input video frame
+            
+        Returns:
+            Number of faces detected (student count)
+        """
+        if self.yolo_detector and self.yolo_detector.is_loaded:
+            try:
+                return self.yolo_detector.get_occupancy_count(frame, conf_threshold=0.5)
+            except Exception as e:
+                print(f"[YOLO] Error getting occupancy count: {e}")
+        
+        # Fallback to counting detected faces
+        faces = self.detect_faces(frame)
+        return len(faces)
     
     def cleanup(self):
         """Cleanup resources"""
