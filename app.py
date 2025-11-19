@@ -46,15 +46,15 @@ classroom_data = {
     'engagement_history': [],
     'environment_data': [],
     'current_stats': {
-        'totalStudents': 32,
-        'presentToday': 28,
-        'studentsDetected': 28,
-        'avgEngagement': 78,
-        'attentionLevel': 82,
-        'lookingAtBoard': 23,
-        'takingNotes': 18,
-        'distracted': 5,
-        'tired': 2
+        'totalStudents': 0,
+        'presentToday': 0,
+        'studentsDetected': 0,
+        'avgEngagement': 0,
+        'attentionLevel': 0,
+        'lookingAtBoard': 0,
+        'takingNotes': 0,
+        'distracted': 0,
+        'tired': 0
     }
 }
 
@@ -568,9 +568,9 @@ def get_iot_latest():
         'data': {
             'temperature': round(data.get('raw_temperature', 0), 1),
             'humidity': round(data.get('raw_humidity', 0), 1),
-            'light': round(data.get('raw_light', 0), 1),
+            'light_level': round(data.get('raw_light', 0), 1),
+            'air_quality': data.get('raw_gas', 0),
             'sound': data.get('raw_sound', 0),
-            'gas': data.get('raw_gas', 0),
             'environmental_score': round(data.get('environmental_score', 0), 1),
             'timestamp': data.get('timestamp').isoformat() if data.get('timestamp') else None
         }

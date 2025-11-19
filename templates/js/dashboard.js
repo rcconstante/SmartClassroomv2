@@ -330,6 +330,7 @@ function loadDashboard() {
     // Initialize charts
     initEngagementChart();
     initOccupancyChart();
+    initEmotionChart();
 
     // Initialize camera button
     initCameraButton();
