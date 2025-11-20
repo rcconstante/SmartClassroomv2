@@ -73,10 +73,10 @@ function updateNavigationByRole(role) {
     const navItems = document.querySelectorAll('.nav-item');
     
     if (role === 'student') {
-        // Students can only see Dashboard and Help
+        // Students can see Dashboard, Camera (view-only), and Help
         navItems.forEach(item => {
             const page = item.getAttribute('data-page');
-            if (page === 'camera' || page === 'analytics' || page === 'settings') {
+            if (page === 'analytics' || page === 'settings') {
                 item.style.display = 'none';
             }
         });
@@ -164,7 +164,7 @@ function hasPageAccess(role, page) {
     
     // Student role restrictions
     if (role === 'student') {
-        const allowedPages = ['dashboard', 'help'];
+        const allowedPages = ['dashboard', 'camera', 'help'];
         return allowedPages.includes(page);
     }
     
@@ -289,7 +289,35 @@ function handleLogout() {
 // Placeholder functions for other pages
 function loadCamera() {
     const mainContent = document.getElementById('mainContent');
+    
+    // Check user role
+    const user = state.user || JSON.parse(localStorage.getItem('user'));
+    const isStudent = user?.role === 'student';
+    
+    // Student view-only mode or full control for teachers/admins
+    const cameraControlsHTML = isStudent ? '' : `
+        <button class="btn btn-primary" id="startCameraBtn" style="padding: 12px 24px; font-size: 16px;">
+            <i data-lucide="play"></i>
+            Start Camera
+        </button>
+    `;
+    
+    const stopButtonHTML = isStudent ? '' : `
+        <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 10px 20px;">
+            <i data-lucide="square" style="width: 16px; height: 16px;"></i>
+            Stop Camera
+        </button>
+    `;
+    
+    const viewModeMessage = isStudent ? `
+        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+            <i data-lucide="eye" style="width: 20px; height: 20px; color: #3b82f6;"></i>
+            <span style="color: #3b82f6; font-size: 14px; font-weight: 500;">View-Only Mode: You can watch the live detection but cannot control the camera</span>
+        </div>
+    ` : '';
+    
     mainContent.innerHTML = `
+        ${viewModeMessage}
         <!-- Full-Width Camera Monitor -->
         <div class="card" style="margin-bottom: 24px;">
             <div class="card-header">
@@ -312,11 +340,8 @@ function loadCamera() {
             <div style="background: #1f2937; border-radius: 12px; position: relative; overflow: hidden; aspect-ratio: 16/9; width: 100%; display: flex; align-items: center; justify-content: center; margin-top: 16px;" id="cameraFeedContainer">
                 <div id="cameraPlaceholder" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; padding: 20px;">
                     <i data-lucide="camera" style="width: 64px; height: 64px; color: #6b7280;"></i>
-                    <p style="color: #9ca3af; font-size: 16px; text-align: center;" id="cameraStatusText">Camera feed will be displayed here</p>
-                    <button class="btn btn-primary" id="startCameraBtn" style="padding: 12px 24px; font-size: 16px;">
-                        <i data-lucide="play"></i>
-                        Start Camera
-                    </button>
+                    <p style="color: #9ca3af; font-size: 16px; text-align: center;" id="cameraStatusText">${isStudent ? 'Waiting for teacher to start camera...' : 'Camera feed will be displayed here'}</p>
+                    ${cameraControlsHTML}
                 </div>
                 <!-- Detection badge (hidden by default) -->
                 <div id="detectionBadge" style="position: absolute; top: 12px; left: 12px; padding: 8px 14px; background: rgba(16, 185, 129, 0.95); color: white; border-radius: 8px; font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 8px; backdrop-filter: blur(8px);">
@@ -325,10 +350,7 @@ function loadCamera() {
                 </div>
                 <!-- Camera controls (hidden by default) -->
                 <div id="cameraControls" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; gap: 12px; z-index: 10;">
-                    <button id="stopCameraBtn" class="btn btn-danger" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 10px 20px;">
-                        <i data-lucide="square" style="width: 16px; height: 16px;"></i>
-                        Stop Camera
-                    </button>
+                    ${stopButtonHTML}
                 </div>
                 <!-- Exit fullscreen button (hidden by default) -->
                 <button id="exitFullscreenBtn" style="position: absolute; top: 12px; right: 12px; background: rgba(0, 0, 0, 0.8); color: white; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; display: none; z-index: 10; align-items: center; gap: 8px; font-size: 14px; backdrop-filter: blur(8px);">
@@ -341,8 +363,11 @@ function loadCamera() {
     
     lucide.createIcons();
     
-    // Initialize camera controls
-    initCameraButton();
+    // Initialize camera controls (only for non-students)
+    if (!isStudent) {
+        initCameraButton();
+    }
+    
     initFullscreenButton();
     
     // Check if camera is running on backend and restore state
@@ -704,6 +729,10 @@ async function initAnalytics() {
         const summaryResponse = await fetch('/api/analytics/summary');
         const summary = await summaryResponse.json();
         
+        // Fetch emotion history for averaged emotion distribution
+        const emotionHistoryResponse = await fetch('/api/emotions/history');
+        const emotionHistory = await emotionHistoryResponse.json();
+        
         // Update stat cards with real data
         updateAnalyticsStats(summary);
         
@@ -715,7 +744,13 @@ async function initAnalytics() {
         // Initialize all charts with real data
         initAnalyticsEngagementChart(trendsData.data);
         initAnalyticsPresenceChart(trendsData.data);
-        initAnalyticsEmotionChart(summary.emotionDistribution);
+        
+        // Use emotion history averages instead of real-time data
+        if (emotionHistory.success && emotionHistory.average_emotions) {
+            initAnalyticsEmotionChart(emotionHistory.average_emotions);
+        } else {
+            initAnalyticsEmotionChart({});
+        }
         
         await populateIoTTable();
         
@@ -770,11 +805,36 @@ async function initAnalytics() {
             }, 10000);
         }
         
-        // Auto-refresh every 5 seconds
+        // Auto-refresh every 15 seconds
         setInterval(async () => {
             const summaryResponse = await fetch('/api/analytics/summary');
             const summary = await summaryResponse.json();
             updateAnalyticsStats(summary);
+            
+            // Refresh emotion chart with averaged history data
+            const emotionHistoryResponse = await fetch('/api/emotions/history');
+            const emotionHistory = await emotionHistoryResponse.json();
+            if (emotionHistory.success && emotionHistory.average_emotions) {
+                // Update the emotion chart with new averages
+                const ctx = document.getElementById('analyticsEmotionChart');
+                if (ctx && ctx.chart) {
+                    const chart = Chart.getChart(ctx);
+                    if (chart) {
+                        const data = [
+                            emotionHistory.average_emotions.Happy || 0,
+                            emotionHistory.average_emotions.Surprise || 0,
+                            emotionHistory.average_emotions.Neutral || 0,
+                            emotionHistory.average_emotions.Sad || 0,
+                            emotionHistory.average_emotions.Angry || 0,
+                            emotionHistory.average_emotions.Disgust || 0,
+                            emotionHistory.average_emotions.Fear || 0
+                        ];
+                        const hasData = data.some(val => val > 0);
+                        chart.data.datasets[0].data = hasData ? data : [1, 1, 1, 1, 1, 1, 1];
+                        chart.update();
+                    }
+                }
+            }
         }, 15000);
         
     } catch (error) {

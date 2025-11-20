@@ -945,6 +945,10 @@ current_emotion_stats = {
     'engagement': 0
 }
 
+# Store emotion history for analytics (stores snapshots every second)
+emotion_history = []
+last_emotion_snapshot = time.time()
+
 def cv_data_sync_worker():
     """Background worker to sync CV data to IoT sensor every 10 seconds"""
     global cv_data_sync_running, current_emotion_stats, classroom_data
@@ -1147,6 +1151,9 @@ def stop_camera():
             'engagement': 0
         }
         
+        # Don't clear emotion_history here - keep it for analytics review
+        # Users can manually clear it via /api/emotions/clear if needed
+        
         # Reset dashboard stats to default values
         classroom_data['current_stats']['studentsDetected'] = 0
         classroom_data['current_stats']['avgEngagement'] = 78
@@ -1214,6 +1221,24 @@ def generate_frames():
                         classroom_data['current_stats']['studentsDetected'] = emotion_stats['total_faces']
                         classroom_data['current_stats']['avgEngagement'] = int(current_emotion_stats['engagement'])
                         
+                        # Store emotion snapshot every second for analytics
+                        global last_emotion_snapshot, emotion_history
+                        current_time = time.time()
+                        if current_time - last_emotion_snapshot >= 1.0:  # Store every 1 second
+                            emotion_snapshot = {
+                                'timestamp': datetime.now().isoformat(),
+                                'total_faces': emotion_stats['total_faces'],
+                                'emotion_percentages': emotion_stats['emotion_percentages'].copy(),
+                                'engagement': current_emotion_stats['engagement']
+                            }
+                            emotion_history.append(emotion_snapshot)
+                            
+                            # Keep only last 3600 snapshots (1 hour at 1/second)
+                            if len(emotion_history) > 3600:
+                                emotion_history.pop(0)
+                            
+                            last_emotion_snapshot = current_time
+                        
                         frame = annotated_frame
                     except Exception as e:
                         print(f"Error in emotion detection: {e}")
@@ -1255,6 +1280,55 @@ def get_emotions():
     return jsonify({
         'success': True,
         'data': current_emotion_stats
+    }), 200
+
+
+@app.route('/api/emotions/history', methods=['GET'])
+def get_emotion_history():
+    """Get emotion history for analytics (averaged over time)"""
+    global emotion_history
+    
+    if not emotion_history:
+        return jsonify({
+            'success': True,
+            'average_emotions': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
+            'total_snapshots': 0,
+            'time_range': 'No data'
+        }), 200
+    
+    # Calculate average emotion percentages
+    emotion_sums = {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0}
+    count = len(emotion_history)
+    
+    for snapshot in emotion_history:
+        for emotion, value in snapshot['emotion_percentages'].items():
+            emotion_sums[emotion] += value
+    
+    # Calculate averages
+    average_emotions = {emotion: round(total / count, 1) for emotion, total in emotion_sums.items()}
+    
+    # Get time range
+    start_time = emotion_history[0]['timestamp']
+    end_time = emotion_history[-1]['timestamp']
+    
+    return jsonify({
+        'success': True,
+        'average_emotions': average_emotions,
+        'total_snapshots': count,
+        'time_range': f"{start_time} to {end_time}",
+        'history': emotion_history[-100:]  # Return last 100 snapshots for visualization
+    }), 200
+
+
+@app.route('/api/emotions/clear', methods=['POST'])
+def clear_emotion_history():
+    """Clear emotion history"""
+    global emotion_history
+    emotion_history = []
+    
+    return jsonify({
+        'success': True,
+        'message': 'Emotion history cleared'
     }), 200
 
 # =========================
