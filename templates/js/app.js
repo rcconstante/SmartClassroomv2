@@ -366,6 +366,9 @@ function loadCamera() {
     // Initialize camera controls (only for non-students)
     if (!isStudent) {
         initCameraButton();
+    } else {
+        // For students, continuously check if camera is running
+        startCameraStatusPolling();
     }
     
     initFullscreenButton();
@@ -389,6 +392,145 @@ function loadCamera() {
             fetchEmotionData();
         }
     }, 2000);
+}
+
+// Camera status polling for students (view-only mode)
+let cameraStatusPollingInterval = null;
+
+function startCameraStatusPolling() {
+    console.log('[Student Mode] Starting camera status polling...');
+    
+    // Poll every 3 seconds to check if camera has started or stopped
+    cameraStatusPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/camera/status');
+            const data = await response.json();
+            
+            if (data.success && data.active) {
+                // Camera is running
+                if (!cameraActive) {
+                    console.log('[Student Mode] Camera detected as active! Loading stream...');
+                    displayCameraStreamForStudent();
+                }
+            } else {
+                // Camera is not running
+                if (cameraActive) {
+                    console.log('[Student Mode] Camera stopped by teacher. Hiding stream...');
+                    hideCameraStreamForStudent();
+                }
+            }
+        } catch (error) {
+            console.error('[Student Mode] Error checking camera status:', error);
+        }
+    }, 3000); // Check every 3 seconds
+    
+    // Also check immediately on page load
+    setTimeout(async () => {
+        try {
+            const response = await fetch('/api/camera/status');
+            const data = await response.json();
+            if (data.success && data.active) {
+                console.log('[Student Mode] Camera already active on page load!');
+                displayCameraStreamForStudent();
+            }
+        } catch (error) {
+            console.error('[Student Mode] Error on initial check:', error);
+        }
+    }, 500);
+}
+
+function displayCameraStreamForStudent() {
+    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const detectionBadge = document.getElementById('detectionBadge');
+    const statusBadge = document.getElementById('cameraStatusBadge');
+    const cameraFeedContainer = document.getElementById('cameraFeedContainer');
+    
+    if (!cameraFeedContainer) {
+        console.warn('[Student Mode] Camera feed container not found');
+        return;
+    }
+    
+    console.log('[Student Mode] Displaying camera stream...');
+    
+    // Mark camera as active
+    cameraActive = true;
+    localStorage.setItem('cameraActive', 'true');
+    
+    // Hide placeholder
+    if (cameraPlaceholder) {
+        cameraPlaceholder.style.display = 'none';
+    }
+    
+    // Create and display video stream
+    let videoElement = document.getElementById('cameraVideoStream');
+    if (!videoElement) {
+        videoElement = document.createElement('img');
+        videoElement.id = 'cameraVideoStream';
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'cover';
+        videoElement.style.borderRadius = '12px';
+        videoElement.style.maxHeight = '100%';
+        cameraFeedContainer.appendChild(videoElement);
+    }
+    
+    // Set video stream source with cache-busting timestamp
+    videoElement.src = `/api/camera/stream?t=${Date.now()}`;
+    videoElement.style.display = 'block';
+    
+    // Show detection badge
+    if (detectionBadge) {
+        detectionBadge.style.display = 'flex';
+    }
+    
+    // Update status badge
+    if (statusBadge) {
+        statusBadge.style.background = '#10b981';
+        statusBadge.innerHTML = '<i data-lucide="video" style="width: 12px; height: 12px;"></i> Live';
+    }
+    
+    lucide.createIcons();
+    
+    console.log('[Student Mode] Camera stream displayed successfully');
+}
+
+function hideCameraStreamForStudent() {
+    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const detectionBadge = document.getElementById('detectionBadge');
+    const statusBadge = document.getElementById('cameraStatusBadge');
+    const cameraFeedContainer = document.getElementById('cameraFeedContainer');
+    const videoElement = document.getElementById('cameraVideoStream');
+    
+    console.log('[Student Mode] Hiding camera stream...');
+    
+    // Mark camera as inactive
+    cameraActive = false;
+    localStorage.setItem('cameraActive', 'false');
+    
+    // Remove video element
+    if (videoElement) {
+        videoElement.remove();
+    }
+    
+    // Show placeholder
+    if (cameraPlaceholder) {
+        cameraPlaceholder.style.display = 'flex';
+    }
+    
+    // Hide detection badge
+    if (detectionBadge) {
+        detectionBadge.style.display = 'none';
+    }
+    
+    // Update status badge
+    if (statusBadge) {
+        statusBadge.style.background = '#6b7280';
+        statusBadge.innerHTML = '<i data-lucide="video-off" style="width: 12px; height: 12px;"></i> Offline';
+    }
+    
+    lucide.createIcons();
+    
+    console.log('[Student Mode] Camera stream hidden - waiting for teacher to start camera');
 }
 
 // Check if camera is running on backend and restore UI state
