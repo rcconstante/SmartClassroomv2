@@ -1141,6 +1141,10 @@ function initAnalyticsEmotionChart(emotionData = {}) {
                 legend: {
                     position: 'bottom',
                     labels: {
+                        padding: 15,
+                        font: {
+                            size: 12
+                        },
                         generateLabels: function(chart) {
                             const data = chart.data;
                             if (data.labels.length && data.datasets.length) {
@@ -1163,7 +1167,8 @@ function initAnalyticsEmotionChart(emotionData = {}) {
                     enabled: hasData,
                     callbacks: {
                         label: function(context) {
-                            return `${context.label}: ${Math.round(context.parsed)}%`;
+                            const value = hasData ? context.parsed : 0;
+                            return hasData ? `${context.label}: ${Math.round(value)}%` : `${context.label}: N/A`;
                         }
                     }
                 }
@@ -1420,26 +1425,7 @@ function loadHelp() {
                 </div>
             </div>
 
-            <!-- Contact Support Section -->
-            <div class="help-contact">
-                <h2>Still need help?</h2>
-                <p>Our support team is here to assist you</p>
-                <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-                    <button class="btn btn-primary" onclick="contactSupport('email')">
-                        <i data-lucide="mail"></i>
-                        Email Support
-                    </button>
-                    <button class="btn btn-secondary" onclick="contactSupport('chat')">
-                        <i data-lucide="message-circle"></i>
-                        Live Chat
-                    </button>
-                </div>
-                <div style="margin-top: 20px; color: var(--text-secondary); font-size: 14px;">
-                    <p><i data-lucide="phone"></i> Phone: +63 (2) 8123-4567</p>
-                    <p><i data-lucide="mail"></i> Email: support@dlsud.edu.ph</p>
-                    <p><i data-lucide="clock"></i> Support Hours: Mon-Fri, 8:00 AM - 5:00 PM</p>
-                </div>
-            </div>
+
         </div>
     `;
     lucide.createIcons();

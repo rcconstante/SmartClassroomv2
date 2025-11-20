@@ -919,6 +919,24 @@ input:checked + .toggle-slider:before {
     line-height: 1.7;
     padding: var(--spacing-md) var(--spacing-sm);
     display: none;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.faq-item.active .faq-answer {
+    display: block;
+    max-height: 500px;
+    animation: fadeIn 0.3s ease;
+}
+
+.faq-item.active .faq-question i {
+    transform: rotate(180deg);
+    transition: transform 0.3s ease;
+}
+
+.faq-question i {
+    transition: transform 0.3s ease;
 }
 
 .faq-answer.show {
