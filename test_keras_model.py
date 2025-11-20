@@ -1,5 +1,5 @@
 """
-Test script to verify EfficientNet emotion detection model loading and inference
+Test script to verify Keras CNN emotion detection model loading and inference
 """
 
 import cv2
@@ -7,33 +7,30 @@ import numpy as np
 import os
 
 def test_model_loading():
-    """Test if EfficientNet model loads correctly"""
+    """Test if Keras CNN model loads correctly"""
     print("=" * 60)
-    print("TESTING EFFICIENTNET EMOTION DETECTION MODEL")
+    print("TESTING KERAS CNN EMOTION DETECTION MODEL")
     print("=" * 60)
     
     try:
         # Test 1: Import model module
         print("\n1. Testing module import...")
-        from camera_system.efficientnet_model import EfficientNetEmotionDetector
-        print("✓ EfficientNet module imported successfully")
+        from camera_system.keras_emotion_model import KerasEmotionDetector
+        print("✓ Keras CNN module imported successfully")
         
         # Test 2: Initialize detector
         print("\n2. Testing model initialization...")
-        model_path = 'static/model/final_effnet_fer_state.pth'
+        model_path = 'static/model/model_combined_best.weights.h5'
         if not os.path.exists(model_path):
             print(f"⚠ Warning: Model file not found at {model_path}")
-            print("  Trying alternative path...")
-            model_path = 'static/model/best_resemotenet_model.pth'
         
-        detector = EfficientNetEmotionDetector(model_path=model_path)
+        detector = KerasEmotionDetector(model_path=model_path)
         print(f"✓ Model loaded from: {model_path}")
-        print(f"  Device: {detector.device}")
         print(f"  Emotion labels: {detector.emotion_labels}")
         
         # Test 3: Create sample image
         print("\n3. Testing prediction with sample image...")
-        # Create a sample RGB face image (any size - will be resized to 224x224)
+        # Create a sample RGB face image (will be converted to grayscale 48x48)
         sample_face = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
         
         # Test 4: Predict emotion
@@ -55,8 +52,8 @@ def test_model_loading():
         print("✓ EmotionDetector initialized successfully")
         
         # Test prediction through EmotionDetector
-        engagement, conf = emotion_detector.predict_emotion(sample_face)
-        print(f"  EmotionDetector result: {engagement} ({conf:.2%})")
+        emotion, conf = emotion_detector.predict_emotion(sample_face)
+        print(f"  EmotionDetector result: {emotion} ({conf:.2%})")
         
         print("\n" + "=" * 60)
         print("ALL TESTS PASSED ✓")

@@ -1,6 +1,6 @@
 """
 Facial Emotion Detection Module
-Uses YOLO11 for face detection and PyTorch EfficientNet for emotion recognition
+Uses YOLO11 for face detection and Keras/TensorFlow CNN for emotion recognition
 """
 
 import cv2
@@ -12,46 +12,45 @@ import os
 EMOTION_LABELS = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear']
 
 class EmotionDetector:
-    """Detects student emotions using YOLO11 face detection + PyTorch EfficientNet emotion recognition"""
+    """Detects student emotions using YOLO11 face detection + Keras/TensorFlow CNN emotion recognition"""
     
     def __init__(self, 
-                 emotion_model_path='static/model/fer2013-bestmodel-new.pth',
+                 emotion_model_path='static/model/model_combined_best.weights.h5',
                  yolo_model_path='static/model/best_yolo11_face.pt'):
         """
-        Initialize emotion detector with YOLO face detection + EfficientNet-B2 emotion recognition
+        Initialize emotion detector with YOLO face detection + Keras CNN emotion recognition
         
         Args:
-            emotion_model_path: Path to the trained PyTorch EfficientNet-B2 emotion model (.pth)
+            emotion_model_path: Path to the trained Keras/TensorFlow emotion model (.h5)
             yolo_model_path: Path to the trained YOLO11 face detection model (.pt)
         """
-        self.efficientnet_detector = None
+        self.keras_detector = None
         self.yolo_detector = None
         self.emotion_model_path = emotion_model_path
         self.yolo_model_path = yolo_model_path
         self.face_cascade = None  # Kept for backward compatibility
         self.emotion_counts = {emotion: 0 for emotion in EMOTION_LABELS}
-        self.input_shape = (260, 260)  # EfficientNet-B2 input size
+        self.input_shape = (48, 48)  # Keras CNN input size (grayscale)
         
         # Load both models
-        self._load_efficientnet_model()
+        self._load_keras_model()
         self._load_yolo_detector()
     
-    def _load_efficientnet_model(self):
-        """Load the trained PyTorch EfficientNet emotion model"""
+    def _load_keras_model(self):
+        """Load the trained Keras/TensorFlow CNN emotion model"""
         try:
-            # Import EfficientNet detector
-            from camera_system.efficientnet_model import EfficientNetEmotionDetector
+            # Import Keras detector
+            from camera_system.keras_emotion_model import KerasEmotionDetector
             
-            # Initialize PyTorch model
-            self.efficientnet_detector = EfficientNetEmotionDetector(model_path=self.emotion_model_path)
-            print(f"✓ EfficientNet-B2 Emotion Model loaded: {self.emotion_model_path}")
+            # Initialize Keras model
+            self.keras_detector = KerasEmotionDetector(model_path=self.emotion_model_path)
+            print(f"✓ Keras CNN Emotion Model loaded: {self.emotion_model_path}")
             print(f"Model expects input shape: {self.input_shape}")
-            print(f"Using device: {self.efficientnet_detector.device}")
                 
         except Exception as e:
-            print(f"Error loading EfficientNet emotion detection model: {e}")
+            print(f"Error loading Keras emotion detection model: {e}")
             print("Emotion detection will use fallback mode")
-            self.efficientnet_detector = None
+            self.keras_detector = None
     
     def _load_yolo_detector(self):
         """Load YOLO11 face detection model"""
@@ -142,16 +141,16 @@ class EmotionDetector:
         Returns:
             Tuple of (emotion_label, confidence) - Returns raw FER-2013 emotion
         """
-        if self.efficientnet_detector is None:
+        if self.keras_detector is None:
             return 'Neutral', 0.0
         
         try:
-            # Use EfficientNet detector to predict emotion
-            raw_emotion, engagement_state, confidence, all_predictions = self.efficientnet_detector.predict_emotion(face_image)
+            # Use Keras CNN detector to predict emotion
+            raw_emotion, engagement_state, confidence, all_predictions = self.keras_detector.predict_emotion(face_image)
             
             # Debug: Print predictions if confident
             if confidence > 0.3:
-                print(f"\n[EfficientNet Emotion Detection]")
+                print(f"\n[Keras CNN Emotion Detection]")
                 print(f"  Raw FER-2013 Emotion: {raw_emotion} ({confidence*100:.1f}%)")
                 print(f"  All Predictions:")
                 for emotion, prob in all_predictions.items():
