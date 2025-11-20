@@ -1233,9 +1233,8 @@ def generate_frames():
                             }
                             emotion_history.append(emotion_snapshot)
                             
-                            # Keep only last 3600 snapshots (1 hour at 1/second)
-                            if len(emotion_history) > 3600:
-                                emotion_history.pop(0)
+                            # No limit on emotion history for long sessions (3-4 hours)
+                            # Memory usage: ~1KB per snapshot = ~14.4MB for 4 hours
                             
                             last_emotion_snapshot = current_time
                         
