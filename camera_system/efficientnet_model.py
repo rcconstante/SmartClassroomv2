@@ -1,5 +1,5 @@
 """
-EfficientNet-B0 Emotion Detection Model
+EfficientNet-B2 Emotion Detection Model
 PyTorch implementation for FER-2013 emotion recognition
 Maps 7 raw emotions to 6 engagement states for classroom analysis
 """
@@ -16,8 +16,9 @@ import os
 
 class EfficientNetEmotionDetector:
     """
-    PyTorch EfficientNet-B0 model for emotion detection
+    PyTorch EfficientNet-B2 model for emotion detection
     Trained on FER-2013 dataset with 7 emotion classes
+    Input size: 260x260 RGB images
     """
     
     # FER-2013 emotion labels (7 classes)
@@ -34,9 +35,9 @@ class EfficientNetEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/final_effnet_fer_state.pth'):
+    def __init__(self, model_path='static/model/fer2013-bestmodel-new.pth'):
         """
-        Initialize EfficientNet emotion detector
+        Initialize EfficientNet-B2 emotion detector
         
         Args:
             model_path: Path to trained model weights (.pth file)
@@ -46,26 +47,28 @@ class EfficientNetEmotionDetector:
         self.model = None
         self.emotion_labels = self.EMOTION_LABELS
         
+        # EfficientNet-B2 expects 260x260 input (from training code)
         self.transform = transforms.Compose([
-            transforms.Resize((48, 48)),
+            transforms.Resize((260, 260)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
         self._load_model()
     def _load_model(self):
-        """Load PyTorch model from .pth file"""
+        """Load PyTorch EfficientNet-B2 model from .pth file"""
         try:
-            print(f"[EfficientNet] Loading model...")
+            print(f"[EfficientNet-B2] Loading model...")
             
-            model_path = 'static/model/final_effnet_fer_state.pth'
+            model_path = 'static/model/fer2013-bestmodel-new.pth'
             
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found: {model_path}")
             
-            print(f"[EfficientNet] Loading PyTorch model from: {model_path}")
+            print(f"[EfficientNet-B2] Loading PyTorch model from: {model_path}")
             
-            self.model = models.efficientnet_b0(weights=None)
+            # Use EfficientNet-B2 (1408 features) instead of B0 (1280 features)
+            self.model = models.efficientnet_b2(weights=None)
             num_features = self.model.classifier[1].in_features
             self.model.classifier[1] = nn.Linear(num_features, len(self.EMOTION_LABELS))
             
@@ -78,12 +81,14 @@ class EfficientNetEmotionDetector:
             self.model.eval()
             self.model_path = model_path
             
-            print(f"✓ Successfully loaded PyTorch model from: {model_path}")
+            print(f"✓ Successfully loaded EfficientNet-B2 model from: {model_path}")
             print(f"  Device: {self.device}")
+            print(f"  Architecture: EfficientNet-B2 (1408 features)")
+            print(f"  Input size: 260x260")
             print(f"  Model ready for inference")
             
         except Exception as e:
-            print(f"✗ Error loading EfficientNet model: {e}")
+            print(f"✗ Error loading EfficientNet-B2 model: {e}")
             import traceback
             traceback.print_exc()
             self.model = None
@@ -196,13 +201,13 @@ class EfficientNetEmotionDetector:
     def get_model_info(self) -> Dict:
         """Get information about the loaded model"""
         return {
-            'model_type': 'EfficientNet-B0',
+            'model_type': 'EfficientNet-B2',
             'model_path': self.model_path,
             'framework': 'PyTorch',
             'device': str(self.device),
             'emotion_classes': len(self.EMOTION_LABELS),
             'emotion_labels': self.EMOTION_LABELS,
-            'input_size': (48, 48),
+            'input_size': (260, 260),
             'is_loaded': self.model is not None
         }
     

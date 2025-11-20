@@ -15,13 +15,13 @@ class EmotionDetector:
     """Detects student emotions using YOLO11 face detection + PyTorch EfficientNet emotion recognition"""
     
     def __init__(self, 
-                 emotion_model_path='static/model/final_effnet_fer_state.pth',
+                 emotion_model_path='static/model/fer2013-bestmodel-new.pth',
                  yolo_model_path='static/model/best_yolo11_face.pt'):
         """
-        Initialize emotion detector with YOLO face detection + EfficientNet emotion recognition
+        Initialize emotion detector with YOLO face detection + EfficientNet-B2 emotion recognition
         
         Args:
-            emotion_model_path: Path to the trained PyTorch EfficientNet emotion model (.pth)
+            emotion_model_path: Path to the trained PyTorch EfficientNet-B2 emotion model (.pth)
             yolo_model_path: Path to the trained YOLO11 face detection model (.pt)
         """
         self.efficientnet_detector = None
@@ -30,7 +30,7 @@ class EmotionDetector:
         self.yolo_model_path = yolo_model_path
         self.face_cascade = None  # Kept for backward compatibility
         self.emotion_counts = {emotion: 0 for emotion in EMOTION_LABELS}
-        self.input_shape = (48, 48)  # EfficientNet FER input size
+        self.input_shape = (260, 260)  # EfficientNet-B2 input size
         
         # Load both models
         self._load_efficientnet_model()
@@ -44,7 +44,7 @@ class EmotionDetector:
             
             # Initialize PyTorch model
             self.efficientnet_detector = EfficientNetEmotionDetector(model_path=self.emotion_model_path)
-            print(f"✓ EfficientNet Emotion Model loaded: {self.emotion_model_path}")
+            print(f"✓ EfficientNet-B2 Emotion Model loaded: {self.emotion_model_path}")
             print(f"Model expects input shape: {self.input_shape}")
             print(f"Using device: {self.efficientnet_detector.device}")
                 
