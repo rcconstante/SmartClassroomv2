@@ -34,11 +34,18 @@ document.addEventListener('DOMContentLoaded', () => {
 // Detect available cameras
 async function detectCameras() {
     try {
+        // Suppress notifications during camera detection in settings
+        const originalShowNotification = window.showNotification;
+        window.showNotification = () => {}; // Temporarily disable notifications
+        
         console.log('Detecting cameras...');
         const response = await fetch('/api/camera/detect');
         console.log('Camera detect response status:', response.status);
         const data = await response.json();
         console.log('Camera detect data:', data);
+        
+        // Restore notification function
+        window.showNotification = originalShowNotification;
         
         if (data.success) {
             availableCameras = data.cameras;
@@ -49,6 +56,10 @@ async function detectCameras() {
             return [];
         }
     } catch (error) {
+        // Restore notification function in case of error
+        if (window.showNotification && window.showNotification.name === '') {
+            window.showNotification = originalShowNotification;
+        }
         console.error('Error detecting cameras:', error);
         console.error('Error details:', error.message);
         // Return empty array instead of failing

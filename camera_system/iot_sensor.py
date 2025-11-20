@@ -42,7 +42,7 @@ class IoTSensorReader:
         self.is_connected = False
         self.is_reading = False
         self.reading_thread = None
-        self.data_queue = queue.Queue(maxsize=500)  # Increased for network access
+        self.data_queue = queue.Queue(maxsize=100)
         
         # Database logging attributes
         self.db_logging_enabled = False

@@ -1366,34 +1366,12 @@ def health_check():
 # =========================
 
 if __name__ == '__main__':
-    import socket
-    
-    # Get local IP address
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-    except:
-        local_ip = '127.0.0.1'
-    
-    print("=" * 60)
+    print("=" * 50)
     print("🎓 Smart Classroom Backend Server")
-    print("=" * 60)
-    print(f"Server running on: http://localhost:5000")
-    print(f"Network access:    http://{local_ip}:5000")
-    print(f"API endpoints:     http://{local_ip}:5000/api/")
-    print("=" * 60)
-    print("📱 To access from other devices on your network:")
-    print(f"   1. Open browser on any device")
-    print(f"   2. Go to: http://{local_ip}:5000")
-    print(f"   3. Login as Student (no credentials) or Teacher")
-    print("=" * 60)
-    print("📊 IoT & CV Data Limits:")
-    print(f"   - IoT Queue: 500 readings buffered")
-    print(f"   - Emotion History: 3600 snapshots (1 hour)")
-    print(f"   - Database Logging: No limit (SQLite file)")
-    print("=" * 60)
+    print("=" * 50)
+    print("Server running on: http://localhost:5000")
+    print("API endpoints available at: http://localhost:5000/api/")
+    print("=" * 50)
     # Disable debug mode to prevent auto-reload conflicts with serial port
     # Use 'use_reloader=False' to keep IoT connection stable
     app.run(debug=False, use_reloader=False, host='0.0.0.0', port=5000)
