@@ -1,14 +1,12 @@
 """
-Keras/TensorFlow Custom CNN Emotion Detection Model
-For FER-2013 emotion recognition
-Maps 7 raw emotions to 6 engagement states for classroom analysis
+Keras/TensorFlow Emotion Detection Model
+Uses pre-trained FER-2013 emotion recognition model
 """
 
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 import cv2
-from PIL import Image
 from typing import Tuple, Dict
 import os
 
@@ -17,7 +15,6 @@ class KerasEmotionDetector:
     """
     TensorFlow/Keras CNN model for emotion detection
     Trained on FER-2013 dataset with 7 emotion classes
-    Input size: 48x48 grayscale images
     """
     
     # FER-2013 emotion labels (7 classes)
@@ -34,97 +31,38 @@ class KerasEmotionDetector:
         'Fear': 'Confused'
     }
     
-    def __init__(self, model_path='static/model/model_combined_best.weights.h5'):
+    def __init__(self, model_path='static/model/emotion_model_combined.h5'):
         """
-        Initialize Keras CNN emotion detector
+        Initialize Keras emotion detector
         
         Args:
-            model_path: Path to trained model weights (.h5 file)
+            model_path: Path to complete trained model (.h5 file)
         """
         self.model_path = model_path
         self.model = None
         self.emotion_labels = self.EMOTION_LABELS
-        self.input_shape = (48, 48, 1)  # Grayscale input
+        self.input_shape = None  # Will be set after loading
         
         self._load_model()
     
-    def _build_cnn_architecture(self):
-        """Build the custom CNN architecture"""
-        model = keras.Sequential([
-            # Block 1
-            keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=self.input_shape),
-            keras.layers.BatchNormalization(),
-            keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.MaxPooling2D((2, 2)),
-            keras.layers.Dropout(0.25),
-            
-            # Block 2
-            keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.MaxPooling2D((2, 2)),
-            keras.layers.Dropout(0.25),
-            
-            # Block 3
-            keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same'),
-            keras.layers.BatchNormalization(),
-            keras.layers.MaxPooling2D((2, 2)),
-            keras.layers.Dropout(0.25),
-            
-            # Dense layers
-            keras.layers.Flatten(),
-            keras.layers.Dense(512, activation='relu'),
-            keras.layers.BatchNormalization(),
-            keras.layers.Dropout(0.5),
-            keras.layers.Dense(256, activation='relu'),
-            keras.layers.BatchNormalization(),
-            keras.layers.Dropout(0.5),
-            keras.layers.Dense(len(self.EMOTION_LABELS), activation='softmax')
-        ])
-        
-        return model
-    
     def _load_model(self):
-        """Load Keras model from .h5 weights file"""
+        """Load complete Keras model from .h5 file"""
         try:
-            print(f"[Keras CNN] Loading model...")
+            print(f"[Keras] Loading emotion model...")
             
             if not os.path.exists(self.model_path):
                 raise FileNotFoundError(f"Model file not found: {self.model_path}")
             
-            print(f"[Keras CNN] Building architecture...")
-            self.model = self._build_cnn_architecture()
+            # Load complete model
+            self.model = keras.models.load_model(self.model_path, compile=False)
             
-            print(f"[Keras CNN] Loading weights from: {self.model_path}")
-            try:
-                # Try loading weights
-                self.model.load_weights(self.model_path)
-                print(f"✓ Successfully loaded Keras CNN model weights")
-            except Exception as e:
-                print(f"Warning: Could not load weights directly: {e}")
-                print(f"Attempting to build from scratch with saved weights...")
-                
-                # Try loading as full model if it's a complete model file
-                try:
-                    self.model = keras.models.load_model(self.model_path, compile=False)
-                    print(f"✓ Loaded as complete Keras model")
-                except:
-                    print(f"Building model with random initialization (weights file may be incomplete)")
+            # Get input shape from model
+            self.input_shape = self.model.input_shape[1:3]  # (height, width)
             
-            # Compile model
-            self.model.compile(
-                optimizer='adam',
-                loss='categorical_crossentropy',
-                metrics=['accuracy']
-            )
-            
-            print(f"  Input shape: {self.input_shape}")
+            print(f"✓ Model loaded successfully")
+            print(f"  Model path: {self.model_path}")
+            print(f"  Input shape: {self.model.input_shape}")
             print(f"  Output classes: {len(self.EMOTION_LABELS)}")
-            print(f"  Model ready for inference")
             
         except Exception as e:
             print(f"✗ Error loading Keras model: {e}")
@@ -142,21 +80,17 @@ class KerasEmotionDetector:
         Returns:
             Preprocessed image tensor
         """
-        # Convert to grayscale if needed
-        if len(face_image.shape) == 3:
-            gray = cv2.cvtColor(face_image, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = face_image
+        # Resize to model input size (48x48)
+        resized = cv2.resize(face_image, (48, 48))
         
-        # Resize to 48x48
-        resized = cv2.resize(gray, (48, 48))
+        # Model expects RGB, convert from BGR
+        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         
         # Normalize to [0, 1]
-        normalized = resized.astype('float32') / 255.0
+        normalized = rgb.astype('float32') / 255.0
         
-        # Add channel dimension and batch dimension
-        tensor = np.expand_dims(normalized, axis=-1)  # Add channel dim
-        tensor = np.expand_dims(tensor, axis=0)  # Add batch dim
+        # Add batch dimension
+        tensor = np.expand_dims(normalized, axis=0)
         
         return tensor
     

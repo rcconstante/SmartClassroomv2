@@ -15,7 +15,7 @@ class EmotionDetector:
     """Detects student emotions using YOLO11 face detection + Keras/TensorFlow CNN emotion recognition"""
     
     def __init__(self, 
-                 emotion_model_path='static/model/model_combined_best.weights.h5',
+                 emotion_model_path='static/model/emotion_model_combined.h5',
                  yolo_model_path='static/model/best_yolo11_face.pt'):
         """
         Initialize emotion detector with YOLO face detection + Keras CNN emotion recognition
@@ -37,15 +37,14 @@ class EmotionDetector:
         self._load_yolo_detector()
     
     def _load_keras_model(self):
-        """Load the trained Keras/TensorFlow CNN emotion model"""
+        """Load the trained Keras/TensorFlow emotion model"""
         try:
             # Import Keras detector
             from camera_system.keras_emotion_model import KerasEmotionDetector
             
             # Initialize Keras model
             self.keras_detector = KerasEmotionDetector(model_path=self.emotion_model_path)
-            print(f"✓ Keras CNN Emotion Model loaded: {self.emotion_model_path}")
-            print(f"Model expects input shape: {self.input_shape}")
+            print(f"✓ Keras Emotion Model loaded: {self.emotion_model_path}")
                 
         except Exception as e:
             print(f"Error loading Keras emotion detection model: {e}")
@@ -133,13 +132,13 @@ class EmotionDetector:
     
     def predict_emotion(self, face_image) -> Tuple[str, float]:
         """
-        Predict emotion from face image using EfficientNet FER-2013 model
+        Predict emotion from face image using Keras emotion model
         
         Args:
             face_image: Cropped face image (BGR format from OpenCV)
             
         Returns:
-            Tuple of (emotion_label, confidence) - Returns raw FER-2013 emotion
+            Tuple of (emotion_label, confidence)
         """
         if self.keras_detector is None:
             return 'Neutral', 0.0
@@ -150,13 +149,12 @@ class EmotionDetector:
             
             # Debug: Print predictions if confident
             if confidence > 0.3:
-                print(f"\n[Keras CNN Emotion Detection]")
-                print(f"  Raw FER-2013 Emotion: {raw_emotion} ({confidence*100:.1f}%)")
+                print(f"\n[Keras Emotion Detection]")
+                print(f"  Emotion: {raw_emotion} ({confidence*100:.1f}%)")
                 print(f"  All Predictions:")
                 for emotion, prob in all_predictions.items():
                     print(f"    {emotion:10s}: {prob*100:5.1f}%")
             
-            # Return raw FER-2013 emotion instead of mapped engagement state
             return raw_emotion, confidence
             
         except Exception as e:
