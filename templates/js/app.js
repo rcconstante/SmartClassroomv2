@@ -1530,8 +1530,22 @@ async function toggleIoTLogging() {
                 
                 document.getElementById('iotLoggingStatus').style.display = 'none';
                 
+                // Show success notification
+                showNotification(
+                    'Logging Stopped',
+                    `Database logging stopped. ${result.record_count} records saved.`,
+                    'success',
+                    4000
+                );
                 console.log(`Stopped logging: ${result.record_count} records saved`);
             } else {
+                // Show error notification
+                showNotification(
+                    'Error',
+                    result.message || 'Failed to stop logging',
+                    'error',
+                    4000
+                );
                 console.error(result.message || 'Failed to stop logging');
             }
         } else {
@@ -1548,14 +1562,35 @@ async function toggleIoTLogging() {
                 document.getElementById('iotDbFile').textContent = result.db_file.split('/').pop();
                 document.getElementById('iotRecordCount').textContent = '0';
                 
+                // Show success notification
+                showNotification(
+                    'Logging Started',
+                    'Database logging has started successfully',
+                    'success',
+                    4000
+                );
                 console.log('Database logging started');
             } else {
+                // Show error notification
+                showNotification(
+                    'Error',
+                    result.message || 'Failed to start logging',
+                    'error',
+                    4000
+                );
                 console.error(result.message || 'Failed to start logging');
             }
         }
         
         lucide.createIcons();
     } catch (error) {
+        // Show error notification
+        showNotification(
+            'Error',
+            'An error occurred while toggling IoT logging',
+            'error',
+            4000
+        );
         console.error('Error toggling IoT logging:', error);
     } finally {
         btn.disabled = false;
@@ -1628,4 +1663,98 @@ async function exportCurrentIoTSession() {
     } catch (error) {
         console.error('Error exporting IoT data:', error);
     }
+}
+
+/* ===================================
+   NOTIFICATION SYSTEM
+   =================================== */
+
+/**
+ * Display a notification to the user
+ * @param {string} title - Notification title
+ * @param {string} message - Notification message
+ * @param {string} type - Notification type: 'success', 'error', 'info', 'warning'
+ * @param {number} duration - Duration in ms before auto-dismiss (0 = no auto-dismiss)
+ */
+function showNotification(title, message, type = 'info', duration = 4000) {
+    const container = document.getElementById('notificationContainer');
+    
+    if (!container) {
+        console.error('Notification container not found');
+        return;
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    // Icon based on type
+    const iconMap = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        info: 'info',
+        warning: 'alert-triangle'
+    };
+    
+    const icon = iconMap[type] || 'info';
+    
+    notification.innerHTML = `
+        <div class="notification-content">
+            <div class="notification-icon">
+                <i data-lucide="${icon}"></i>
+            </div>
+            <div class="notification-text">
+                <div class="notification-title">${escapeHtml(title)}</div>
+                <div class="notification-message">${escapeHtml(message)}</div>
+            </div>
+            <button class="notification-close" aria-label="Close notification">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+    `;
+    
+    // Add to container
+    container.appendChild(notification);
+    
+    // Re-render Lucide icons
+    lucide.createIcons();
+    
+    // Close button handler
+    const closeBtn = notification.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+        removeNotification(notification);
+    });
+    
+    // Auto-dismiss if duration specified
+    if (duration > 0) {
+        setTimeout(() => {
+            removeNotification(notification);
+        }, duration);
+    }
+    
+    return notification;
+}
+
+/**
+ * Remove a notification with animation
+ * @param {HTMLElement} notification - The notification element to remove
+ */
+function removeNotification(notification) {
+    notification.classList.add('removing');
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 300); // Match slideOut animation duration
+}
+
+/**
+ * Escape HTML to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
