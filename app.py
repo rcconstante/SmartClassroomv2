@@ -949,11 +949,6 @@ current_emotion_stats = {
 emotion_history = []
 last_emotion_snapshot = time.time()
 
-# Multi-client streaming support
-latest_frame = None
-frame_lock = threading.Lock()
-frame_ready = threading.Event()
-
 def cv_data_sync_worker():
     """Background worker to sync CV data to IoT sensor every 10 seconds"""
     global cv_data_sync_running, current_emotion_stats, classroom_data
@@ -1121,15 +1116,6 @@ def start_camera():
         success = active_camera_stream.start()
         
         if success:
-            # Start background frame processor for multi-client streaming
-            global latest_frame
-            latest_frame = None
-            frame_ready.clear()
-            
-            processor_thread = threading.Thread(target=frame_processor, daemon=True)
-            processor_thread.start()
-            print("✓ Background frame processor started for multi-client streaming")
-            
             return jsonify({
                 'success': True,
                 'camera_id': camera_id,
@@ -1156,12 +1142,6 @@ def stop_camera():
         if active_camera_stream:
             active_camera_stream.stop()
             active_camera_stream = None
-        
-        # Clear frame cache
-        global latest_frame
-        with frame_lock:
-            latest_frame = None
-            frame_ready.clear()
         
         # Reset emotion stats
         current_emotion_stats = {
@@ -1214,16 +1194,14 @@ def camera_status():
         }), 500
 
 
-def frame_processor():
-    """Background thread to process frames and update global state"""
-    global active_camera_stream, emotion_detector, current_emotion_stats, latest_frame
-    
-    print("[Frame Processor] Started background frame processing thread")
+def generate_frames():
+    """Generator function to stream video frames with emotion detection"""
+    global active_camera_stream, emotion_detector, current_emotion_stats
     
     while True:
         # Check if camera is still active
         if not active_camera_stream or not active_camera_stream.is_running:
-            print("[Frame Processor] Camera stream stopped")
+            print("Camera stream stopped, ending frame generation")
             break
             
         try:
@@ -1263,76 +1241,35 @@ def frame_processor():
                         
                         frame = annotated_frame
                     except Exception as e:
-                        print(f"[Frame Processor] Error in emotion detection: {e}")
+                        print(f"Error in emotion detection: {e}")
                 
-                # Encode frame as JPEG and store in cache
-                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                # Encode frame as JPEG
+                ret, buffer = cv2.imencode('.jpg', frame)
                 if ret:
-                    with frame_lock:
-                        latest_frame = buffer.tobytes()
-                        frame_ready.set()
+                    frame_bytes = buffer.tobytes()
+                    
+                    # Yield frame in multipart format
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
             else:
-                print("[Frame Processor] No frame received from camera")
-                time.sleep(0.01)
+                print("No frame received from camera")
+                break
         except Exception as e:
-            print(f"[Frame Processor] Error: {e}")
-            time.sleep(0.01)
-    
-    print("[Frame Processor] Thread ended")
-
-
-def generate_frames():
-    """Generator function to stream cached frames to multiple clients"""
-    print("[Stream Client] New client connected to video stream")
-    
-    while True:
-        # Wait for frame to be ready
-        frame_ready.wait(timeout=1.0)
-        
-        # Check if camera is still active
-        if not active_camera_stream or not active_camera_stream.is_running:
-            print("[Stream Client] Camera stopped, ending stream")
+            print(f"Error generating frame: {e}")
             break
-        
-        try:
-            # Get latest frame from cache
-            with frame_lock:
-                if latest_frame is None:
-                    continue
-                frame_bytes = latest_frame
-            
-            # Yield frame in multipart format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            
-            # Small delay to control frame rate for network streaming
-            time.sleep(0.033)  # ~30 FPS
-        except Exception as e:
-            print(f"[Stream Client] Error: {e}")
-            break
-    
-    print("[Stream Client] Client disconnected")
 
 
 @app.route('/api/camera/stream')
 def video_stream():
-    """Video streaming route. Returns MJPEG stream - supports multiple clients"""
+    """Video streaming route. Returns MJPEG stream"""
     if not CAMERA_SYSTEM_AVAILABLE:
         return jsonify({
             'success': False,
             'error': 'Camera system not available'
         }), 200
     
-    response = Response(generate_frames(),
-                       mimetype='multipart/x-mixed-replace; boundary=frame')
-    
-    # Add headers to prevent caching and enable streaming
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    
-    return response
+    return Response(generate_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/api/emotions', methods=['GET'])
@@ -1438,19 +1375,25 @@ if __name__ == '__main__':
         local_ip = s.getsockname()[0]
         s.close()
     except:
-        local_ip = "localhost"
+        local_ip = '127.0.0.1'
     
-    print("=" * 70)
-    print("🎓 Smart Classroom Backend Server - Multi-Client Streaming Enabled")
-    print("=" * 70)
-    print(f"✓ Server running on:")
-    print(f"  - Local:   http://localhost:5000")
-    print(f"  - Network: http://{local_ip}:5000")
-    print(f"\n✓ Access from other devices on the same network:")
-    print(f"  - Open http://{local_ip}:5000 on any device")
-    print(f"\n✓ Camera stream supports unlimited simultaneous viewers")
-    print(f"✓ All API endpoints accessible across network")
-    print("=" * 70)
+    print("=" * 60)
+    print("🎓 Smart Classroom Backend Server")
+    print("=" * 60)
+    print(f"Server running on: http://localhost:5000")
+    print(f"Network access:    http://{local_ip}:5000")
+    print(f"API endpoints:     http://{local_ip}:5000/api/")
+    print("=" * 60)
+    print("📱 To access from other devices on your network:")
+    print(f"   1. Open browser on any device")
+    print(f"   2. Go to: http://{local_ip}:5000")
+    print(f"   3. Login as Student (no credentials) or Teacher")
+    print("=" * 60)
+    print("📊 IoT & CV Data Limits:")
+    print(f"   - IoT Queue: 500 readings buffered")
+    print(f"   - Emotion History: 3600 snapshots (1 hour)")
+    print(f"   - Database Logging: No limit (SQLite file)")
+    print("=" * 60)
     # Disable debug mode to prevent auto-reload conflicts with serial port
     # Use 'use_reloader=False' to keep IoT connection stable
     app.run(debug=False, use_reloader=False, host='0.0.0.0', port=5000)

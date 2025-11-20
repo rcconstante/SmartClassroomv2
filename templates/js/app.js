@@ -471,26 +471,12 @@ function displayCameraStreamForStudent() {
         videoElement.style.objectFit = 'cover';
         videoElement.style.borderRadius = '12px';
         videoElement.style.maxHeight = '100%';
-        
-        // Add error handling for stream
-        videoElement.onerror = function() {
-            console.error('[Student Mode] Stream error - attempting reconnect...');
-            // Retry connection after 2 seconds
-            setTimeout(() => {
-                if (cameraActive) {
-                    videoElement.src = `/api/camera/stream?t=${Date.now()}`;
-                }
-            }, 2000);
-        };
-        
         cameraFeedContainer.appendChild(videoElement);
     }
     
-    // Set video stream source with cache-busting timestamp and reload interval
+    // Set video stream source with cache-busting timestamp
     videoElement.src = `/api/camera/stream?t=${Date.now()}`;
     videoElement.style.display = 'block';
-    
-    console.log(`[Student Mode] Stream URL: ${videoElement.src}`);
     
     // Show detection badge
     if (detectionBadge) {
