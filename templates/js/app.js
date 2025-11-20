@@ -49,12 +49,12 @@ function updateUserProfile(user) {
     
     if (profileAvatar && user.name) {
         // Get initials from name
-        const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        const initials = user.role === 'admin' ? 'A' : user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
         profileAvatar.textContent = initials;
     }
     
     if (profileName) {
-        profileName.textContent = user.name || 'User';
+        profileName.textContent = user.role === 'admin' ? 'Admin' : (user.name || 'User');
     }
     
     if (profileRole) {
@@ -63,7 +63,7 @@ function updateUserProfile(user) {
     }
     
     if (pageTitle && user.name) {
-        const firstName = user.name.split(' ')[0];
+        const firstName = user.role === 'admin' ? 'Admin' : user.name.split(' ')[0];
         pageTitle.textContent = `Hi, ${firstName}!`;
     }
 }
