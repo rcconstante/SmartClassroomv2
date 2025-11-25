@@ -780,7 +780,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Engagement Trends</h3>
-                        <p class="card-subtitle">Daily engagement levels over selected period</p>
+                        <p class="card-subtitle">High vs Low engagement tracking from system start</p>
                     </div>
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -846,7 +846,6 @@ function loadAnalytics() {
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Angry</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Disgust</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Fear</th>
-                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Env Score</th>
                             </tr>
                         </thead>
                         <tbody id="iotTableBody">
@@ -1145,8 +1144,9 @@ function initAnalyticsEngagementChart(data) {
     const ctx = document.getElementById('analyticsEngagementChart');
     if (!ctx) return;
     
-    // Check if we have real data
-    const hasData = data.some(d => d.avgEngagement > 0);
+    // Use real-time engagement data from system start
+    // Track high engagement vs low engagement over time
+    const hasData = data.some(d => (d.highlyEngaged > 0 || d.disengaged > 0));
 
     new Chart(ctx, {
         type: 'line',
@@ -1154,31 +1154,32 @@ function initAnalyticsEngagementChart(data) {
             labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
             datasets: [
                 {
-                    label: 'Engagement',
-                    data: data.map(d => d.avgEngagement || 0),
+                    label: 'High Engagement',
+                    data: data.map(d => d.highlyEngaged || 0),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 },
                 {
-                    label: 'Highly Engaged',
-                    data: data.map(d => d.highlyEngaged || 0),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    borderWidth: 3
-                },
-                {
-                    label: 'Disengaged',
+                    label: 'Low Engagement',
                     data: data.map(d => d.disengaged || 0),
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 }
             ]
         },
@@ -1190,16 +1191,29 @@ function initAnalyticsEngagementChart(data) {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        padding: 15
+                        padding: 15,
+                        font: {
+                            size: 13,
+                            weight: 500
+                        }
                     }
                 },
                 tooltip: {
                     enabled: hasData,
                     mode: 'index',
                     intersect: false,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    borderRadius: 8,
                     callbacks: {
                         label: function(context) {
-                            return hasData ? `${context.dataset.label}: ${context.parsed.y}%` : 'No data';
+                            if (!hasData) return 'No data';
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y + ' students';
+                            return label;
                         }
                     }
                 }
@@ -1207,13 +1221,20 @@ function initAnalyticsEngagementChart(data) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100,
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)'
                     },
                     ticks: {
                         callback: function(value) {
-                            return hasData ? value + '%' : '';
+                            return hasData ? value : '';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Number of Students',
+                        font: {
+                            size: 12,
+                            weight: 500
                         }
                     }
                 },
@@ -1390,7 +1411,7 @@ async function populateIoTTable() {
         if (!result.success || !result.data || result.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p>No IoT sensor data available. Connect Arduino to start logging.</p>
                     </td>
@@ -1405,13 +1426,6 @@ async function populateIoTTable() {
             const timeStr = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const dateStr = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             
-            const getScoreColor = (score) => {
-                if (score >= 80) return '#10b981';
-                if (score >= 60) return '#f59e0b';
-                return '#ef4444';
-            };
-            
-            const envScore = row.environmental_score || 0;
             const occupancy = row.occupancy !== undefined ? row.occupancy : 'N/A';
             // Display emotion COUNTS (not percentages) - each is an integer representing number of faces
             const happy = row.happy !== undefined ? row.happy : 'N/A';
@@ -1438,9 +1452,6 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #ef4444;">${angry}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f97316;">${disgust}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f59e0b;">${fear}</td>
-                    <td style="padding: 10px; text-align: center;">
-                        <span class="badge" style="background: ${getScoreColor(envScore)};">${envScore.toFixed(1)}</span>
-                    </td>
                 </tr>
             `;
         }).join('');
@@ -1450,7 +1461,7 @@ async function populateIoTTable() {
         console.error('Error fetching IoT data:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                     <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                     <p>Failed to load IoT sensor data</p>
                 </td>

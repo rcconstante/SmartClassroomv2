@@ -228,21 +228,27 @@ def update_dashboard_stats():
 
 @app.route('/api/dashboard/engagement', methods=['GET'])
 def get_engagement_data():
-    """Get real-time engagement data"""
-    # Generate mock data
+    """Get real-time engagement data from emotion detection"""
+    # Get current engagement from emotion detector
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    
+    # Get high/low engagement breakdown from current stats
+    high_engaged = current_emotion_stats.get('high_engagement', 0)
+    low_engaged = current_emotion_stats.get('low_engagement', 0)
+    total_faces = current_emotion_stats.get('total_faces', 0)
+    
+    # Calculate percentages
+    highly_engaged_pct = (high_engaged / total_faces * 100) if total_faces > 0 else 0
+    disengaged_pct = (low_engaged / total_faces * 100) if total_faces > 0 else 0
+    engaged_pct = 100 - highly_engaged_pct - disengaged_pct if total_faces > 0 else 0
+    
     engagement_data = {
-        'current': random.randint(65, 85),
-        'history': [
-            {
-                'time': (datetime.now() - timedelta(minutes=i*5)).strftime('%H:%M'),
-                'value': random.randint(60, 90)
-            }
-            for i in range(12, 0, -1)
-        ],
+        'current': current_engagement,
+        'history': emotion_history[-12:] if len(emotion_history) >= 12 else emotion_history,  # Last 12 readings
         'breakdown': {
-            'highly_engaged': random.randint(15, 25),
-            'engaged': random.randint(5, 10),
-            'disengaged': random.randint(2, 5)
+            'highly_engaged': int(highly_engaged_pct),
+            'engaged': int(engaged_pct),
+            'disengaged': int(disengaged_pct)
         }
     }
     return jsonify(engagement_data), 200
@@ -554,6 +560,76 @@ def list_iot_databases():
             'databases': []
         }), 500
 
+
+@app.route('/api/predictions/environment', methods=['GET'])
+def get_environmental_predictions():
+    """Get environmental predictions using Gradient Boosting + Random Forest models"""
+    global environmental_predictor
+    
+    # Initialize predictor if not already done
+    if environmental_predictor is None and get_environmental_predictor:
+        environmental_predictor = get_environmental_predictor()
+    
+    if not environmental_predictor or not environmental_predictor.is_loaded:
+        return jsonify({
+            'success': False,
+            'error': 'Environmental prediction models not available',
+            'message': 'Models could not be loaded. Check model files in static/model/'
+        }), 503
+    
+    # Check if we have IoT data
+    if not iot_enabled or not get_iot_data:
+        return jsonify({
+            'success': False,
+            'error': 'IoT sensors not connected',
+            'message': 'Connect Arduino to get environmental predictions'
+        }), 503
+    
+    try:
+        # Get current sensor data
+        iot_data = get_iot_data()
+        if not iot_data or not iot_data.get('timestamp'):
+            return jsonify({
+                'success': False,
+                'error': 'No sensor data available',
+                'message': 'Waiting for sensor readings...'
+            }), 503
+        
+        # Get prediction summary
+        summary = environmental_predictor.get_prediction_summary({
+            'temperature': iot_data.get('raw_temperature', 24.0),
+            'humidity': iot_data.get('raw_humidity', 55.0),
+            'gas': iot_data.get('raw_gas', 500),
+            'light': iot_data.get('raw_light', 400),
+            'sound': iot_data.get('raw_sound', 40),
+            'occupancy': classroom_data['current_stats'].get('studentsDetected', 0),
+            'high_engagement': current_emotion_stats.get('high_engagement', 0),
+            'low_engagement': current_emotion_stats.get('low_engagement', 0),
+            'timestamp': iot_data.get('timestamp')
+        })
+        
+        if not summary.get('is_available'):
+            return jsonify({
+                'success': False,
+                'error': summary.get('error', 'Prediction not available'),
+                'current_buffer_size': summary.get('current_buffer_size', 0),
+                'required_buffer_size': summary.get('required_buffer_size', 20)
+            }), 200
+        
+        return jsonify({
+            'success': True,
+            **summary
+        }), 200
+        
+    except Exception as e:
+        print(f"Error generating environmental predictions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Prediction error: {str(e)}'
+        }), 500
+
 @app.route('/api/iot/latest', methods=['GET'])
 def get_iot_latest():
     """Get latest IoT sensor reading (frontend expects this endpoint)"""
@@ -734,33 +810,42 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends over time - Real data from current session"""
+    """Get engagement trends over time - Track high/low engagement from system start"""
     days = request.args.get('days', default=7, type=int)
     
-    # Get current engagement stats
-    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    # Get current engagement data from emotion detector
+    emotion_data = current_emotion_stats.get('engagement_summary', {})
+    high_engagement = emotion_data.get('high_engagement', 0)
+    low_engagement = emotion_data.get('low_engagement', 0)
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     
-    # Get emotion data
-    emotion_data = current_emotion_stats.get('emotion_percentages', {})
-    engaged_pct = emotion_data.get('Engaged', 0)
-    disengaged_pct = (emotion_data.get('Bored', 0) + 
-                      emotion_data.get('Looking Away', 0) + 
-                      emotion_data.get('Drowsy', 0))
-    
+    # Build trends data - only show data from system start (today)
     trends = {
-        'period': f'Last {days} days',
-        'data': [
-            {
-                'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
-                'avgEngagement': current_engagement if i == 0 else 0,
-                'highlyEngaged': round(engaged_pct) if i == 0 else 0,
-                'disengaged': round(disengaged_pct) if i == 0 else 0,
-                'studentsPresent': current_students if i == 0 else 0
-            }
-            for i in range(days - 1, -1, -1)
-        ]
+        'period': f'System started today',
+        'data': []
     }
+    
+    # Only populate today's data (index 0 is today)
+    for i in range(days - 1, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        
+        if i == 0:  # Today (system running)
+            trends['data'].append({
+                'date': date,
+                'avgEngagement': 0,  # Not used anymore
+                'highlyEngaged': high_engagement,  # Number of students with high engagement
+                'disengaged': low_engagement,  # Number of students with low engagement
+                'studentsPresent': current_students
+            })
+        else:  # Past days (no data before system start)
+            trends['data'].append({
+                'date': date,
+                'avgEngagement': 0,
+                'highlyEngaged': 0,
+                'disengaged': 0,
+                'studentsPresent': 0
+            })
+    
     return jsonify(trends), 200
 
 
@@ -918,6 +1003,7 @@ try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
     from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
+    from camera_system.ml_models import get_environmental_predictor
     CAMERA_SYSTEM_AVAILABLE = True
     print("✓ Camera system loaded successfully")
 except ImportError as e:
@@ -930,6 +1016,7 @@ except ImportError as e:
     get_iot_data = None
     get_iot_status = None
     get_iot_alerts = None
+    get_environmental_predictor = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
@@ -937,11 +1024,16 @@ emotion_detector = None
 iot_enabled = False
 cv_data_sync_thread = None
 cv_data_sync_running = False
+environmental_predictor = None  # NEW: Environmental prediction model
 
 current_emotion_stats = {
     'total_faces': 0,
     'emotions': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
     'emotion_percentages': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
+    'high_engagement': 0,  # NEW: High engaged count
+    'low_engagement': 0,   # NEW: Low engaged count
+    'high_engagement_pct': 0,  # NEW: High engaged percentage
+    'low_engagement_pct': 0,   # NEW: Low engaged percentage
     'engagement': 0
 }
 
@@ -951,7 +1043,7 @@ last_emotion_snapshot = time.time()
 
 def cv_data_sync_worker():
     """Background worker to sync CV data to IoT sensor every 10 seconds"""
-    global cv_data_sync_running, current_emotion_stats, classroom_data
+    global cv_data_sync_running, current_emotion_stats, classroom_data, environmental_predictor
     from camera_system.iot_sensor import iot_sensor
     
     print("[CV Sync] Background worker started - syncing every 10 seconds")
@@ -965,10 +1057,32 @@ def cv_data_sync_worker():
                 # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
                 emotion_counts = current_emotion_stats.get('emotions', {})
                 
+                # Get high/low engagement counts
+                high_engagement = current_emotion_stats.get('high_engagement', 0)
+                low_engagement = current_emotion_stats.get('low_engagement', 0)
+                
                 # Update IoT sensor with CV data (counts, not percentages)
                 iot_sensor.update_cv_data(occupancy, emotion_counts)
                 
-                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, emotion_counts={emotion_counts}")
+                # Update environmental predictor with current data
+                if environmental_predictor and environmental_predictor.is_loaded:
+                    iot_data = get_iot_data()
+                    if iot_data and iot_data.get('timestamp'):
+                        # Prepare data for predictor
+                        predictor_data = {
+                            'temperature': iot_data.get('raw_temperature', 24.0),
+                            'humidity': iot_data.get('raw_humidity', 55.0),
+                            'gas': iot_data.get('raw_gas', 500),
+                            'light': iot_data.get('raw_light', 400),
+                            'sound': iot_data.get('raw_sound', 40),
+                            'occupancy': occupancy,
+                            'high_engagement': high_engagement,
+                            'low_engagement': low_engagement,
+                            'timestamp': iot_data.get('timestamp')
+                        }
+                        environmental_predictor.add_reading(predictor_data)
+                
+                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, high_engagement={high_engagement}, low_engagement={low_engagement}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")
@@ -1008,6 +1122,17 @@ if CAMERA_SYSTEM_AVAILABLE and initialize_iot:
         print("ℹ IoT sensors not connected (system will work without them)")
         print("ℹ Make sure Arduino IDE Serial Monitor is CLOSED")
         print("ℹ If Arduino is on different port, edit app.py line 937")
+    else:
+        # Initialize environmental predictor when IoT is available
+        if get_environmental_predictor:
+            try:
+                environmental_predictor = get_environmental_predictor()
+                if environmental_predictor.is_loaded:
+                    print("✓ Environmental prediction pipeline initialized")
+                else:
+                    print("⚠ Warning: Environmental prediction models not fully loaded")
+            except Exception as e:
+                print(f"⚠ Warning: Could not initialize environmental predictor: {e}")
 
 @app.route('/api/camera/detect', methods=['GET'])
 def detect_cameras():
@@ -1213,7 +1338,7 @@ def generate_frames():
                     try:
                         annotated_frame, emotion_stats = emotion_detector.process_frame(frame)
                         
-                        # Update global emotion stats
+                        # Update global emotion stats (now includes high/low engagement)
                         current_emotion_stats = emotion_stats
                         current_emotion_stats['engagement'] = emotion_detector.get_engagement_from_emotions()
                         
@@ -1229,6 +1354,10 @@ def generate_frames():
                                 'timestamp': datetime.now().isoformat(),
                                 'total_faces': emotion_stats['total_faces'],
                                 'emotion_percentages': emotion_stats['emotion_percentages'].copy(),
+                                'high_engagement': emotion_stats.get('high_engagement', 0),
+                                'low_engagement': emotion_stats.get('low_engagement', 0),
+                                'high_engagement_pct': emotion_stats.get('high_engagement_pct', 0),
+                                'low_engagement_pct': emotion_stats.get('low_engagement_pct', 0),
                                 'engagement': current_emotion_stats['engagement']
                             }
                             emotion_history.append(emotion_snapshot)
@@ -1273,12 +1402,22 @@ def video_stream():
 
 @app.route('/api/emotions', methods=['GET'])
 def get_emotions():
-    """Get current emotion detection statistics"""
+    """Get current emotion detection statistics with high/low engagement grouping"""
     global current_emotion_stats
     
     return jsonify({
         'success': True,
-        'data': current_emotion_stats
+        'data': {
+            **current_emotion_stats,
+            # Add explicit engagement summary
+            'engagement_summary': {
+                'high_engaged_count': current_emotion_stats.get('high_engagement', 0),
+                'low_engaged_count': current_emotion_stats.get('low_engagement', 0),
+                'high_engaged_pct': current_emotion_stats.get('high_engagement_pct', 0),
+                'low_engaged_pct': current_emotion_stats.get('low_engagement_pct', 0),
+                'total_faces': current_emotion_stats.get('total_faces', 0)
+            }
+        }
     }), 200
 
 

@@ -11,6 +11,12 @@ import os
 # FER-2013 emotion labels (7 classes from computer vision model)
 EMOTION_LABELS = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear']
 
+# Engagement groupings based on trained model
+# High Engagement = neutral + happy + surprise
+# Low Engagement = sad + angry + fear + disgust
+HIGH_ENGAGEMENT_EMOTIONS = ['Neutral', 'Happy', 'Surprise']
+LOW_ENGAGEMENT_EMOTIONS = ['Sad', 'Angry', 'Fear', 'Disgust']
+
 class EmotionDetector:
     """Detects student emotions using YOLO11 face detection + Keras/TensorFlow CNN emotion recognition"""
     
@@ -166,6 +172,7 @@ class EmotionDetector:
     def process_frame(self, frame) -> Tuple[np.ndarray, Dict]:
         """
         Process frame to detect faces and emotions
+        Groups emotions into high_engagement and low_engagement
         
         Args:
             frame: Input video frame
@@ -193,12 +200,19 @@ class EmotionDetector:
             # Update emotion count
             self.emotion_counts[emotion] += 1
             
+            # Determine engagement label for display
+            if emotion in HIGH_ENGAGEMENT_EMOTIONS:
+                display_label = "High Engaged"
+                color = (0, 255, 0)  # Green for high engagement
+            else:
+                display_label = "Low Engaged"
+                color = (0, 0, 255)  # Red for low engagement
+            
             # Draw rectangle around face
-            color = self._get_emotion_color(emotion)
             cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), color, 2)
             
-            # Draw emotion label
-            label = f"{emotion} ({confidence*100:.1f}%)"
+            # Draw engagement label (instead of raw emotion)
+            label = f"{display_label} ({confidence*100:.1f}%)"
             label_y = y - 10 if y - 10 > 10 else y + h + 20
             
             # Draw background for text
@@ -212,11 +226,19 @@ class EmotionDetector:
             cv2.putText(annotated_frame, label, (x, label_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
-        # Calculate emotion statistics
+        # Calculate high/low engagement counts
+        high_engaged = sum(self.emotion_counts[e] for e in HIGH_ENGAGEMENT_EMOTIONS)
+        low_engaged = sum(self.emotion_counts[e] for e in LOW_ENGAGEMENT_EMOTIONS)
+        
+        # Calculate emotion statistics (now includes engagement grouping)
         emotion_stats = {
             'total_faces': num_faces,
-            'emotions': self.emotion_counts,
-            'emotion_percentages': self._calculate_percentages(num_faces)
+            'emotions': self.emotion_counts,  # Original 7 emotions for tracking
+            'emotion_percentages': self._calculate_percentages(num_faces),
+            'high_engagement': high_engaged,  # NEW: Count of high engaged students
+            'low_engagement': low_engaged,    # NEW: Count of low engaged students
+            'high_engagement_pct': (high_engaged / num_faces * 100) if num_faces > 0 else 0,
+            'low_engagement_pct': (low_engaged / num_faces * 100) if num_faces > 0 else 0
         }
         
         return annotated_frame, emotion_stats

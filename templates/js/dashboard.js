@@ -192,10 +192,10 @@ function loadDashboard() {
                         <i data-lucide="thermometer"></i>
                     </div>
                 </div>
-                <div class="stat-value" style="font-size: 24px;">Optimal</div>
-                <div class="stat-change positive">
-                    <i data-lucide="check-circle"></i>
-                    <span>All systems normal</span>
+                <div class="stat-value" id="environmentStatus" style="font-size: 24px;">N/A</div>
+                <div class="stat-change" id="environmentStatusChange">
+                    <i data-lucide="info"></i>
+                    <span>Waiting for data...</span>
                 </div>
             </div>
         </div>
@@ -218,19 +218,19 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Occupancy Overview -->
+            <!-- Environmental Forecast -->
             <div class="card card-half">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Occupancy</h3>
-                        <p class="card-subtitle">Real-time classroom occupancy trends</p>
+                        <h3 class="card-title">Environmental Forecast</h3>
+                        <p class="card-subtitle">Predicted conditions from Gradient Boosting model</p>
                     </div>
                     <button class="card-action">
-                        <i data-lucide="users"></i>
+                        <i data-lucide="trending-up"></i>
                     </button>
                 </div>
                 <div class="chart-container">
-                    <canvas id="occupancyChart"></canvas>
+                    <canvas id="forecastChart"></canvas>
                 </div>
             </div>
 
@@ -329,8 +329,11 @@ function loadDashboard() {
     lucide.createIcons();
     // Initialize charts
     initEngagementChart();
-    initOccupancyChart();
+    initForecastChart();
     initEmotionChart();
+    
+    // Initialize notification system
+    initNotificationSystem();
 
     // Initialize camera button
     initCameraButton();
@@ -348,43 +351,174 @@ function loadDashboard() {
     // Update IoT environment data every 10 seconds
     setInterval(fetchIoTEnvironmentData, 10000);
     
-    // Update emotion data every 2 seconds when camera is active
+    // Update emotion chart data every 2 seconds when camera is active
     setInterval(() => {
-        // Check both local variable and localStorage for camera state
         const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
         if (isCameraActive) {
-            // Emotion data updates moved to emotion detector
+            updateEmotionChartData();
         }
     }, 2000);
+    
+    // Fetch environmental predictions every 15 seconds (when IoT is active)
+    setInterval(fetchEnvironmentalPredictions, 15000);
+    
+    // Update environment status every 10 seconds
+    setInterval(updateEnvironmentStatus, 10000);
 }
 
-// Initialize Engagement Chart
+// Fetch environmental predictions from ML models
+async function fetchEnvironmentalPredictions() {
+    try {
+        const response = await fetch('/api/predictions/environment');
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('Environmental Predictions:', result);
+            
+            // Update forecast chart
+            updateForecastChart(result);
+            
+            // Update environment status card
+            updateEnvironmentStatusCard(result);
+            
+            // Show notifications for recommendations
+            if (result.recommendations && result.recommendations.length > 0) {
+                showPredictionNotifications(result.recommendations, result.comfort_classification);
+            }
+        }
+    } catch (error) {
+        // Silently fail if predictions not available yet
+        console.debug('Environmental predictions not available:', error);
+    }
+}
+
+// Update environment status card with RF classification
+function updateEnvironmentStatusCard(predictionData) {
+    const statusEl = document.getElementById('environmentStatus');
+    const statusChangeEl = document.getElementById('environmentStatusChange');
+    
+    if (!statusEl || !statusChangeEl) return;
+    
+    const comfort = predictionData.comfort_classification || {};
+    const level = comfort.level;
+    const label = comfort.label || 'N/A';
+    const probabilities = comfort.probabilities || {};
+    
+    // Get highest probability
+    const maxProb = Math.max(...Object.values(probabilities)) * 100;
+    
+    // Update status text and color
+    statusEl.textContent = label;
+    
+    // Color coding based on comfort level
+    const colors = {
+        'Critical': { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444', icon: 'alert-triangle' },
+        'Poor': { bg: 'rgba(245, 158, 11, 0.1)', text: '#f59e0b', icon: 'alert-circle' },
+        'Acceptable': { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6', icon: 'info' },
+        'Optimal': { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981', icon: 'check-circle' }
+    };
+    
+    const color = colors[label] || colors['Acceptable'];
+    statusEl.style.color = color.text;
+    
+    // Update status change message
+    let message = '';
+    let changeClass = 'neutral';
+    
+    if (label === 'Optimal') {
+        message = 'All systems normal';
+        changeClass = 'positive';
+    } else if (label === 'Acceptable') {
+        message = 'Conditions are acceptable';
+        changeClass = 'neutral';
+    } else if (label === 'Poor') {
+        message = 'Improvement needed';
+        changeClass = 'negative';
+    } else if (label === 'Critical') {
+        message = 'Immediate action required!';
+        changeClass = 'negative';
+    }
+    
+    statusChangeEl.className = `stat-change ${changeClass}`;
+    statusChangeEl.innerHTML = `
+        <i data-lucide="${color.icon}"></i>
+        <span>${message} (${maxProb.toFixed(0)}% confidence)</span>
+    `;
+    
+    lucide.createIcons();
+}
+
+// Update environment status from IoT data
+async function updateEnvironmentStatus() {
+    // Try to get prediction data first
+    try {
+        const response = await fetch('/api/predictions/environment');
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update environment status card
+            updateEnvironmentStatusCard(result);
+            
+            // Update forecast chart
+            updateForecastChart(result);
+            
+            // Show notifications for recommendations
+            showPredictionNotifications(result.recommendations, result.comfort_classification);
+        }
+    } catch (error) {
+        // If predictions not available, just show N/A
+        console.debug('Environment predictions not yet available');
+    }
+}
+
+// Initialize Engagement & Attention Chart (High/Low Engagement)
+let engagementChart = null;
+let engagementHistory = [];
+
 function initEngagementChart() {
     const ctx = document.getElementById('engagementChart');
     if (!ctx) return;
 
-    new Chart(ctx, {
+    // Initialize with empty data
+    const labels = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+        const time = new Date(now.getTime() - i * 10000); // Last 70 seconds
+        labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }
+
+    engagementChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            labels: labels,
             datasets: [
                 {
-                    label: 'Engagement Level',
-                    data: [75, 78, 72, 80, 78, 82, 85],
+                    label: 'High Engagement',
+                    data: Array(7).fill(0),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 },
                 {
-                    label: 'Attention Level',
-                    data: [80, 82, 78, 85, 82, 88, 90],
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    label: 'Low Engagement',
+                    data: Array(7).fill(0),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
                 }
             ]
         },
@@ -415,6 +549,16 @@ function initEngagementChart() {
                     },
                     bodyFont: {
                         size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(1) + '%';
+                            return label;
+                        }
                     }
                 }
             },
@@ -445,6 +589,54 @@ function initEngagementChart() {
             }
         }
     });
+    
+    // Start updating engagement data every 2 seconds
+    setInterval(updateEngagementChart, 2000);
+}
+
+// Update engagement chart with real-time high/low engagement data
+async function updateEngagementChart() {
+    if (!engagementChart) return;
+    
+    try {
+        const response = await fetch('/api/emotions');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            const engagementSummary = data.engagement_summary || {};
+            
+            // Get percentages
+            const highPct = engagementSummary.high_engaged_pct || 0;
+            const lowPct = engagementSummary.low_engaged_pct || 0;
+            
+            // Add to history
+            engagementHistory.push({
+                timestamp: new Date(),
+                high: highPct,
+                low: lowPct
+            });
+            
+            // Keep only last 20 data points
+            if (engagementHistory.length > 20) {
+                engagementHistory.shift();
+            }
+            
+            // Update chart labels and data
+            const labels = engagementHistory.map(item => 
+                item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            );
+            const highData = engagementHistory.map(item => item.high);
+            const lowData = engagementHistory.map(item => item.low);
+            
+            engagementChart.data.labels = labels;
+            engagementChart.data.datasets[0].data = highData;
+            engagementChart.data.datasets[1].data = lowData;
+            engagementChart.update('none'); // Update without animation for smoother real-time updates
+        }
+    } catch (error) {
+        console.error('Error updating engagement chart:', error);
+    }
 }
 
 // Initialize Occupancy Chart
@@ -586,12 +778,133 @@ function updateOccupancyChart() {
     occupancyChart.update('none'); // Update without animation for smoother real-time updates
 }
 
-// Initialize Emotion Detection Chart
+// Initialize Forecast Chart (Gradient Boosting Predictions)
+let forecastChart = null;
+
+function initForecastChart() {
+    const ctx = document.getElementById('forecastChart');
+    if (!ctx) return;
+
+    forecastChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Temperature (°C)', 'Humidity (%)', 'CO₂ (ppm)', 'Light (lux)', 'Sound (dBA)'],
+            datasets: [
+                {
+                    label: 'Current',
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Predicted',
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                    borderColor: '#f59e0b',
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 13,
+                            weight: 500
+                        }
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    borderRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(1);
+                            
+                            // Add units
+                            const units = ['°C', '%', ' ppm', ' lux', ' dBA'];
+                            label += units[context.dataIndex] || '';
+                            
+                            return label;
+                        },
+                        afterLabel: function(context) {
+                            if (context.dataset.label === 'Predicted') {
+                                const currentData = context.chart.data.datasets[0].data;
+                                const predictedData = context.chart.data.datasets[1].data;
+                                const delta = predictedData[context.dataIndex] - currentData[context.dataIndex];
+                                const sign = delta >= 0 ? '+' : '';
+                                return `Change: ${sign}${delta.toFixed(1)}`;
+                            }
+                            return null;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Update forecast chart with prediction data
+function updateForecastChart(predictionData) {
+    if (!forecastChart) return;
+    
+    const current = predictionData.current_conditions || {};
+    const predicted = predictionData.predicted_conditions || {};
+    
+    // Update chart data
+    forecastChart.data.datasets[0].data = [
+        current.temperature || 0,
+        current.humidity || 0,
+        current.co2 || 0,
+        current.light || 0,
+        current.sound || 0
+    ];
+    
+    forecastChart.data.datasets[1].data = [
+        predicted.predicted_temperature || 0,
+        predicted.predicted_humidity || 0,
+        predicted.predicted_gas || 0,
+        predicted.predicted_light || 0,
+        predicted.predicted_sound || 0
+    ];
+    
+    forecastChart.update('none');
+}
+
+// Initialize 7 Emotions Chart (for Engagement States card)
 let emotionChart = null;
 let emotionChartMini = null;
 
 function initEmotionChart() {
-    // Main emotion chart
+    // Main emotion chart - Shows 7 FER-2013 emotions
     const ctx = document.getElementById('emotionChart');
     if (ctx) {
         // Define FER-2013 emotion colors
@@ -724,6 +1037,63 @@ function updateEmotionLegendMini(emotionColors, hasData = false) {
             <span style="font-size: 9px; color: var(--text-secondary);">${emotion}</span>
         </div>
     `).join('');
+}
+
+// Update 7-emotion chart with real-time data from API
+async function updateEmotionChartData() {
+    if (!emotionChart) return;
+    
+    try {
+        const response = await fetch('/api/emotions');
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            const emotionPercentages = data.emotion_percentages || {};
+            
+            // Get all 7 emotion percentages
+            const emotions = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'];
+            const emotionData = emotions.map(emotion => emotionPercentages[emotion] || 0);
+            
+            // Check if we have any data
+            const hasData = emotionData.some(val => val > 0);
+            
+            if (hasData) {
+                emotionChart.data.datasets[0].data = emotionData;
+                emotionChart.options.plugins.tooltip.enabled = true;
+                emotionChart.update('none');
+                
+                // Update legend with actual percentages
+                const legendContainer = document.getElementById('emotionLegend');
+                if (legendContainer) {
+                    const emotionColors = {
+                        'Happy': '#10b981',
+                        'Surprise': '#22d3ee',
+                        'Neutral': '#8b5cf6',
+                        'Sad': '#6b7280',
+                        'Angry': '#ef4444',
+                        'Disgust': '#f97316',
+                        'Fear': '#f59e0b'
+                    };
+                    legendContainer.innerHTML = emotions.map(emotion => `
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${emotionColors[emotion]};"></div>
+                            <span style="font-size: 11px; color: var(--text-secondary);">${emotion}: ${emotionPercentages[emotion]?.toFixed(1) || '0.0'}%</span>
+                        </div>
+                    `).join('');
+                }
+            }
+            
+            // Update mini chart if it exists
+            if (emotionChartMini && hasData) {
+                emotionChartMini.data.datasets[0].data = emotionData;
+                emotionChartMini.options.plugins.tooltip.enabled = true;
+                emotionChartMini.update('none');
+            }
+        }
+    } catch (error) {
+        console.error('Error updating emotion chart:', error);
+    }
 }
 
 // Fetch Dashboard Data from Backend (deprecated - use fetchDashboardStats)
@@ -1295,5 +1665,128 @@ function updateLSTMChartWithAPIData(apiData) {
 function updateLSTMChartSimulation() {
     // LSTM functionality removed - no model available yet
     return;
+}
+
+// ==================== Notification System ====================
+
+// Initialize notification system
+let notificationContainer = null;
+let notificationQueue = [];
+let activeNotifications = [];
+
+function initNotificationSystem() {
+    // Create notification container if it doesn't exist
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notificationContainer';
+        notificationContainer.className = 'fixed top-4 right-4 z-50 space-y-3 max-w-md';
+        notificationContainer.style.cssText = 'pointer-events: none;';
+        document.body.appendChild(notificationContainer);
+    }
+}
+
+// Show notifications for prediction recommendations
+function showPredictionNotifications(recommendations, classification) {
+    if (!recommendations || recommendations.length === 0) return;
+    
+    // Show critical alert if room is uncomfortable
+    if (classification === 'Critical' || classification === 'Poor') {
+        showNotification({
+            type: 'alert',
+            title: classification === 'Critical' ? '🚨 ALERT: Room Conditions Critical!' : '⚠️ Warning: Room Conditions Poor',
+            message: `Environment predicted to be ${classification.toLowerCase()}. Please check recommendations.`,
+            duration: 15000,
+            severity: classification === 'Critical' ? 'error' : 'warning'
+        });
+    }
+    
+    // Show individual recommendations (limit to 3 most important)
+    const topRecommendations = recommendations.slice(0, 3);
+    topRecommendations.forEach((rec, index) => {
+        setTimeout(() => {
+            showNotification({
+                type: 'recommendation',
+                title: getRecommendationIcon(rec) + ' Recommendation',
+                message: rec,
+                duration: 10000,
+                severity: 'info'
+            });
+        }, index * 2000); // Stagger notifications by 2 seconds
+    });
+}
+
+// Get icon for recommendation based on content
+function getRecommendationIcon(recommendation) {
+    const text = recommendation.toLowerCase();
+    if (text.includes('temperature') || text.includes('cooling') || text.includes('heating')) return '🌡️';
+    if (text.includes('humidity')) return '💧';
+    if (text.includes('co2') || text.includes('ventilation')) return '🌬️';
+    if (text.includes('light')) return '💡';
+    if (text.includes('sound') || text.includes('noise')) return '🔊';
+    return 'ℹ️';
+}
+
+// Display a notification
+function showNotification({ type, title, message, duration = 10000, severity = 'info' }) {
+    if (!notificationContainer) initNotificationSystem();
+    
+    const notification = document.createElement('div');
+    notification.className = `notification-item transform transition-all duration-300 ease-in-out`;
+    notification.style.cssText = 'pointer-events: auto; opacity: 0; transform: translateX(100px);';
+    
+    // Severity colors
+    const severityConfig = {
+        'error': { bg: 'bg-red-500', border: 'border-red-600', icon: '🚨' },
+        'warning': { bg: 'bg-orange-500', border: 'border-orange-600', icon: '⚠️' },
+        'info': { bg: 'bg-blue-500', border: 'border-blue-600', icon: 'ℹ️' },
+        'success': { bg: 'bg-green-500', border: 'border-green-600', icon: '✓' }
+    };
+    
+    const config = severityConfig[severity] || severityConfig['info'];
+    
+    notification.innerHTML = `
+        <div class="${config.bg} ${config.border} border-l-4 text-white p-4 rounded-lg shadow-lg max-w-md">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <span class="text-2xl">${config.icon}</span>
+                </div>
+                <div class="ml-3 flex-1">
+                    <h3 class="text-sm font-bold">${title}</h3>
+                    <p class="mt-1 text-sm opacity-90">${message}</p>
+                </div>
+                <button onclick="this.closest('.notification-item').remove()" 
+                        class="ml-3 flex-shrink-0 text-white hover:text-gray-200 focus:outline-none">
+                    <span class="text-xl">&times;</span>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    notificationContainer.appendChild(notification);
+    activeNotifications.push(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        removeNotification(notification);
+    }, duration);
+}
+
+// Remove notification with animation
+function removeNotification(notification) {
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateX(100px)';
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+        activeNotifications = activeNotifications.filter(n => n !== notification);
+    }, 300);
 }
 }
