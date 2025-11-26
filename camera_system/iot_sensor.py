@@ -880,3 +880,8 @@ def get_iot_alerts() -> List[Dict]:
     if iot_sensor:
         return iot_sensor.get_alerts()
     return []
+
+def get_iot_sensor():
+    """Get the IoT sensor instance (use this instead of direct import)"""
+    global iot_sensor
+    return iot_sensor

@@ -372,16 +372,18 @@ def get_iot_sensor_alerts():
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""
+    sensor = get_iot_sensor() if get_iot_sensor else None
+    
     # Check if IoT sensor is available and has data (is_reading or has recent data)
-    if not iot_enabled or not iot_sensor:
+    if not iot_enabled or not sensor:
         return jsonify({
             'success': False,
             'message': 'IoT sensor module not initialized'
         }), 503
     
     # Check if sensor is connected OR has recent data (dashboard working)
-    has_recent_data = (iot_sensor.current_data.get('timestamp') is not None)
-    is_sensor_active = iot_sensor.is_connected or iot_sensor.is_reading or has_recent_data
+    has_recent_data = (sensor.current_data.get('timestamp') is not None)
+    is_sensor_active = sensor.is_connected or sensor.is_reading or has_recent_data
     
     if not is_sensor_active:
         return jsonify({
@@ -389,7 +391,7 @@ def start_iot_logging():
             'message': 'IoT sensors not connected. Please connect Arduino and restart the server.'
         }), 503
     
-    result = iot_sensor.start_db_logging()
+    result = sensor.start_db_logging()
     
     # Start CV data sync thread if logging started successfully
     if result['success']:
@@ -402,7 +404,9 @@ def start_iot_logging():
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
     """Stop IoT database logging and CV data sync"""
-    if not iot_enabled or not iot_sensor:
+    sensor = get_iot_sensor() if get_iot_sensor else None
+    
+    if not iot_enabled or not sensor:
         return jsonify({
             'success': False,
             'message': 'IoT sensor not initialized'
@@ -411,7 +415,7 @@ def stop_iot_logging():
     # Stop CV data sync thread
     stop_cv_data_sync()
     
-    result = iot_sensor.stop_db_logging()
+    result = sensor.stop_db_logging()
     status_code = 200 if result['success'] else 400
     return jsonify(result), status_code
 
@@ -419,7 +423,9 @@ def stop_iot_logging():
 @app.route('/api/iot/logging-status', methods=['GET'])
 def get_logging_status():
     """Get current database logging status"""
-    if not iot_enabled or not iot_sensor:
+    sensor = get_iot_sensor() if get_iot_sensor else None
+    
+    if not iot_enabled or not sensor:
         return jsonify({
             'enabled': False,
             'db_file': None,
@@ -427,20 +433,22 @@ def get_logging_status():
             'record_count': 0
         })
     
-    status = iot_sensor.get_db_logging_status()
+    status = sensor.get_db_logging_status()
     return jsonify(status)
 
 
 @app.route('/api/iot/export-csv', methods=['POST'])
 def export_iot_csv():
     """Export current SQLite database to CSV"""
-    if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
+    sensor = get_iot_sensor() if get_iot_sensor else None
+    
+    if not iot_enabled or not sensor or not sensor.db_logging_enabled:
         return jsonify({
             'success': False,
             'message': 'No active database logging session'
         }), 400
     
-    result = iot_sensor.export_db_to_csv()
+    result = sensor.export_db_to_csv()
     
     if result['success']:
         # Return the CSV file for download
@@ -682,19 +690,25 @@ def get_iot_history():
     limit = request.args.get('limit', default=1000, type=int)
     limit = min(limit, 5000)
     
-    if not iot_enabled or not iot_sensor:
+    sensor = get_iot_sensor() if get_iot_sensor else None
+    
+    if not iot_enabled or not sensor:
         return jsonify({
             'success': False,
-            'error': 'IoT sensors not available',
-            'data': []
+            'error': 'IoT sensor module not initialized. Please restart the server with Arduino connected.',
+            'data': [],
+            'status': {
+                'iot_enabled': iot_enabled,
+                'sensor_initialized': sensor is not None
+            }
         }), 200
     
     history_data = []
     
     # Try to read from the active database if logging is enabled
-    if iot_sensor.db_logging_enabled and iot_sensor.db_connection:
+    if sensor.db_logging_enabled and sensor.db_connection:
         try:
-            cursor = iot_sensor.db_connection.cursor()
+            cursor = sensor.db_connection.cursor()
             cursor.execute('''
                 SELECT timestamp, temperature, humidity, light, sound, gas, 
                        environmental_score, occupancy, happy, surprise, neutral, 
@@ -703,7 +717,7 @@ def get_iot_history():
                 WHERE session_id = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
-            ''', (iot_sensor.db_session_id, limit))
+            ''', (sensor.db_session_id, limit))
             
             rows = cursor.fetchall()
             
@@ -777,11 +791,20 @@ def get_iot_history():
         import traceback
         traceback.print_exc()
     
+    # Get sensor status for debugging
+    sensor_status = {
+        'connected': sensor.is_connected if sensor else False,
+        'reading': sensor.is_reading if sensor else False,
+        'db_logging': sensor.db_logging_enabled if sensor else False,
+        'has_data': len(history_data) > 0
+    }
+    
     return jsonify({
         'success': True,
         'data': history_data[-limit:],
         'count': len(history_data),
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'status': sensor_status
     }), 200
 
 
@@ -1159,7 +1182,7 @@ def get_alerts():
 try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
-    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts, iot_sensor
+    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts, get_iot_sensor
     from camera_system.ml_models import get_environmental_predictor
     from camera_system.analytics_db import get_analytics_db
     CAMERA_SYSTEM_AVAILABLE = True
@@ -1176,7 +1199,7 @@ except ImportError as e:
     get_iot_alerts = None
     get_environmental_predictor = None
     get_analytics_db = None
-    iot_sensor = None
+    get_iot_sensor = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
@@ -1212,8 +1235,11 @@ def cv_data_sync_worker():
     
     while cv_data_sync_running:
         try:
+            # Get IoT sensor instance
+            sensor = get_iot_sensor() if get_iot_sensor else None
+            
             # Only sync if IoT logging is enabled
-            if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
+            if iot_enabled and sensor and sensor.db_logging_enabled:
                 # Get current CV data
                 occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
                 # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
@@ -1224,7 +1250,7 @@ def cv_data_sync_worker():
                 low_engagement = current_emotion_stats.get('low_engagement', 0)
                 
                 # Update IoT sensor with CV data (counts, not percentages)
-                iot_sensor.update_cv_data(occupancy, emotion_counts)
+                sensor.update_cv_data(occupancy, emotion_counts)
                 
                 # Log to analytics database
                 if analytics_db:

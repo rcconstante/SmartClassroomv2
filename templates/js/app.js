@@ -1539,12 +1539,18 @@ async function populateIoTTable() {
         
         // Check if no data yet (sensors connected but no readings)
         if (!result.data || result.data.length === 0) {
+            // Get status info for debugging
+            const status = result.status || {};
+            const statusInfo = status.connected 
+                ? (status.reading ? 'Sensor connected and reading' : 'Sensor connected but not reading')
+                : 'Sensor not connected';
+            
             tbody.innerHTML = `
                 <tr>
                     <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="loader" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; animation: spin 2s linear infinite;"></i>
                         <p>Waiting for sensor data...</p>
-                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Data will appear here once the sensors start transmitting</p>
+                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${statusInfo} - Data will appear once sensors transmit</p>
                     </td>
                 </tr>
             `;
