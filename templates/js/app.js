@@ -34,11 +34,159 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNavigationByRole(user.role);
     
     initDarkMode();
+    initNotificationButton();
     initEventListeners();
     
     // Load dashboard by default
     loadDashboard();
 });
+
+// Notification Button Functions
+function initNotificationButton() {
+    const notificationBtn = document.getElementById('notificationBtn');
+    
+    if (notificationBtn) {
+        notificationBtn.addEventListener('click', () => {
+            toggleNotificationPanel();
+        });
+    }
+    
+    // Update notification badge periodically
+    updateNotificationBadge();
+    setInterval(updateNotificationBadge, 30000); // Check every 30 seconds
+}
+
+function toggleNotificationPanel() {
+    let panel = document.getElementById('notificationPanel');
+    
+    if (!panel) {
+        // Create notification panel
+        panel = document.createElement('div');
+        panel.id = 'notificationPanel';
+        panel.className = 'notification-panel';
+        panel.innerHTML = `
+            <div class="notification-panel-header">
+                <h3>Notifications</h3>
+                <button class="notification-close" onclick="closeNotificationPanel()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="notification-panel-body" id="notificationPanelBody">
+                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                    <i data-lucide="loader" style="width: 32px; height: 32px; margin-bottom: 12px;"></i>
+                    <p>Loading notifications...</p>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(panel);
+        lucide.createIcons();
+        
+        // Load notifications
+        loadNotificationsPanel();
+    } else {
+        // Toggle visibility
+        if (panel.style.display === 'block') {
+            panel.style.display = 'none';
+        } else {
+            panel.style.display = 'block';
+            loadNotificationsPanel();
+        }
+    }
+}
+
+function closeNotificationPanel() {
+    const panel = document.getElementById('notificationPanel');
+    if (panel) {
+        panel.style.display = 'none';
+    }
+}
+
+async function loadNotificationsPanel() {
+    const panelBody = document.getElementById('notificationPanelBody');
+    if (!panelBody) return;
+    
+    try {
+        const response = await fetch('/api/alerts');
+        const alerts = await response.json();
+        
+        if (!Array.isArray(alerts) || alerts.length === 0) {
+            panelBody.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                    <i data-lucide="check-circle" style="width: 48px; height: 48px; margin-bottom: 12px; color: #10b981;"></i>
+                    <p style="font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">All Clear!</p>
+                    <p style="font-size: 14px;">No alerts at the moment</p>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        // Display alerts
+        panelBody.innerHTML = alerts.map(alert => `
+            <div class="notification-item notification-${alert.type}">
+                <div class="notification-item-icon">
+                    <i data-lucide="${getAlertIconForPanel(alert.type)}"></i>
+                </div>
+                <div class="notification-item-content">
+                    <div class="notification-item-title">${alert.title}</div>
+                    <div class="notification-item-message">${alert.message}</div>
+                    <div class="notification-item-time">${formatAlertTimeForPanel(alert.timestamp)}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        lucide.createIcons();
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+        panelBody.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 12px; color: #ef4444;"></i>
+                <p>Failed to load notifications</p>
+            </div>
+        `;
+        lucide.createIcons();
+    }
+}
+
+async function updateNotificationBadge() {
+    try {
+        const response = await fetch('/api/alerts');
+        const alerts = await response.json();
+        
+        const badge = document.getElementById('notificationBadge');
+        if (badge) {
+            if (Array.isArray(alerts) && alerts.length > 0) {
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error updating notification badge:', error);
+    }
+}
+
+function getAlertIconForPanel(type) {
+    switch (type) {
+        case 'warning': return 'alert-triangle';
+        case 'error': return 'alert-circle';
+        case 'success': return 'check-circle';
+        case 'info': return 'info';
+        default: return 'bell';
+    }
+}
+
+function formatAlertTimeForPanel(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
 
 // Update user profile display
 function updateUserProfile(user) {
@@ -780,7 +928,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Engagement Trends</h3>
-                        <p class="card-subtitle">High vs Low engagement levels over selected period</p>
+                        <p class="card-subtitle">High vs Low engagement levels within 30 minutes</p>
                     </div>
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -793,7 +941,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Classroom Presence</h3>
-                        <p class="card-subtitle">Students detected over time</p>
+                        <p class="card-subtitle">Students detected within 30 minutes</p>
                     </div>
                 </div>
                 <div class="chart-container">
@@ -1151,7 +1299,7 @@ function initAnalyticsEngagementChart(data) {
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+            labels: data.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })),
             datasets: [
                 {
                     label: 'High Engaged (Happy, Surprise, Neutral)',
@@ -1229,6 +1377,7 @@ function initAnalyticsPresenceChart(data) {
     // Build presence data array - use studentsPresent from API data
     const studentData = data.map((d) => ({
         date: d.date,
+        time: d.time,
         students: d.studentsPresent || 0
     }));
     
@@ -1237,7 +1386,7 @@ function initAnalyticsPresenceChart(data) {
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: studentData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+            labels: studentData.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })),
             datasets: [{
                 label: 'Students Present (YOLO Detection)',
                 data: studentData.map(d => d.students),

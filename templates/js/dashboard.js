@@ -65,54 +65,59 @@ async function fetchIoTEnvironmentData() {
     }
 }
 
-// Update Environment Score card with real IoT data
+// Update Comfort Level card with real IoT data
 function updateEnvironmentScore(iotData) {
-    const envScoreEl = document.getElementById('envScore');
-    const envStatusEl = document.getElementById('envStatus');
+    const comfortLevelEl = document.getElementById('comfortLevel');
+    const comfortStatusEl = document.getElementById('comfortStatus');
     
-    if (!envScoreEl || !envStatusEl) return;
+    if (!comfortLevelEl || !comfortStatusEl) return;
     
     const score = iotData.environmental_score || 0;
-    envScoreEl.textContent = score.toFixed(0);
     
-    // Determine status based on score
+    // Determine comfort level text based on score (matching Random Forest classification)
+    let comfortText = '';
     let statusText = '';
     let statusClass = '';
     let iconName = '';
     
     if (score >= 80) {
+        comfortText = 'Optimal';
         statusText = 'Excellent conditions';
         statusClass = 'positive';
         iconName = 'check-circle';
     } else if (score >= 60) {
+        comfortText = 'Acceptable';
         statusText = 'Good conditions';
         statusClass = 'positive';
         iconName = 'check-circle';
     } else if (score >= 40) {
+        comfortText = 'Poor';
         statusText = 'Fair conditions';
         statusClass = 'neutral';
         iconName = 'alert-circle';
     } else {
+        comfortText = 'Critical';
         statusText = 'Poor conditions';
         statusClass = 'negative';
         iconName = 'alert-triangle';
     }
     
-    envStatusEl.className = `stat-change ${statusClass}`;
-    envStatusEl.innerHTML = `<i data-lucide="${iconName}"></i><span>${statusText}</span>`;
+    comfortLevelEl.textContent = comfortText;
+    comfortStatusEl.className = `stat-change ${statusClass}`;
+    comfortStatusEl.innerHTML = `<i data-lucide="${iconName}"></i><span>${statusText}</span>`;
     lucide.createIcons();
 }
 
-// Update Environment Score when no IoT data available
+// Update Comfort Level when no IoT data available
 function updateEnvironmentScoreNoData() {
-    const envScoreEl = document.getElementById('envScore');
-    const envStatusEl = document.getElementById('envStatus');
+    const comfortLevelEl = document.getElementById('comfortLevel');
+    const comfortStatusEl = document.getElementById('comfortStatus');
     
-    if (!envScoreEl || !envStatusEl) return;
+    if (!comfortLevelEl || !comfortStatusEl) return;
     
-    envScoreEl.textContent = '--';
-    envStatusEl.className = 'stat-change neutral';
-    envStatusEl.innerHTML = '<i data-lucide="info"></i><span>No sensor data</span>';
+    comfortLevelEl.textContent = '--';
+    comfortStatusEl.className = 'stat-change neutral';
+    comfortStatusEl.innerHTML = '<i data-lucide="info"></i><span>No sensor data</span>';
     lucide.createIcons();
 }
 
@@ -256,13 +261,13 @@ function loadDashboard() {
 
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Environment Score</span>
+                    <span class="stat-label">Comfort Level</span>
                     <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i data-lucide="thermometer"></i>
                     </div>
                 </div>
-                <div class="stat-value" style="font-size: 24px;" id="envScore">--</div>
-                <div class="stat-change" id="envStatus">
+                <div class="stat-value" style="font-size: 24px;" id="comfortLevel">--</div>
+                <div class="stat-change" id="comfortStatus">
                     <i data-lucide="info"></i>
                     <span>Waiting for sensor data</span>
                 </div>
@@ -292,7 +297,7 @@ function loadDashboard() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Gradient Boosting Forecast</h3>
-                        <p class="card-subtitle">10-minute ahead prediction using ML model</p>
+                        <p class="card-subtitle">Next timestep prediction using feature engineering</p>
                     </div>
                     <button class="card-action">
                         <i data-lucide="trending-up"></i>
@@ -600,7 +605,7 @@ function initForecastChart() {
                     borderWidth: 2
                 },
                 {
-                    label: 'Predicted (10 min)',
+                    label: 'Predicted (Next)',
                     data: [0, 0, 0, 0, 0],
                     backgroundColor: 'rgba(245, 158, 11, 0.7)',
                     borderColor: '#f59e0b',

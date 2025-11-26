@@ -734,39 +734,84 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends over time - Real data from current session"""
-    days = request.args.get('days', default=7, type=int)
+    """Get engagement trends within 30 minutes - Real-time data from emotion history"""
+    global emotion_history
     
-    # Get current engagement stats
-    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
-    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    # Get current time
+    current_time = datetime.now()
+    thirty_minutes_ago = current_time - timedelta(minutes=30)
     
-    # Get emotion data
-    emotion_data = current_emotion_stats.get('emotion_percentages', {})
+    # Filter emotion history to last 30 minutes
+    recent_history = []
+    for snapshot in emotion_history:
+        try:
+            snapshot_time = datetime.fromisoformat(snapshot['timestamp'])
+            if snapshot_time >= thirty_minutes_ago:
+                recent_history.append(snapshot)
+        except:
+            continue
     
-    # High Engaged = Happy + Surprise + Neutral
-    high_engaged_pct = (emotion_data.get('Happy', 0) + 
-                        emotion_data.get('Surprise', 0) + 
-                        emotion_data.get('Neutral', 0))
+    # If no history, return current stats only
+    if not recent_history:
+        current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+        emotion_data = current_emotion_stats.get('emotion_percentages', {})
+        
+        high_engaged_pct = (emotion_data.get('Happy', 0) + 
+                            emotion_data.get('Surprise', 0) + 
+                            emotion_data.get('Neutral', 0))
+        low_engaged_pct = (emotion_data.get('Fear', 0) + 
+                           emotion_data.get('Sad', 0) + 
+                           emotion_data.get('Disgust', 0) + 
+                           emotion_data.get('Angry', 0))
+        
+        trends = {
+            'period': 'Last 30 minutes',
+            'data': [
+                {
+                    'time': current_time.strftime('%H:%M'),
+                    'avgEngagement': current_engagement,
+                    'highlyEngaged': round(high_engaged_pct),
+                    'disengaged': round(low_engaged_pct),
+                    'studentsPresent': current_students
+                }
+            ]
+        }
+        return jsonify(trends), 200
     
-    # Low Engaged = Fear + Sad + Disgust + Angry
-    low_engaged_pct = (emotion_data.get('Fear', 0) + 
-                       emotion_data.get('Sad', 0) + 
-                       emotion_data.get('Disgust', 0) + 
-                       emotion_data.get('Angry', 0))
+    # Sample data every minute from the 30-minute window (max 30 points)
+    sample_interval = max(1, len(recent_history) // 30)
+    sampled_data = recent_history[::sample_interval]
+    
+    # Build trend data from sampled history
+    trend_data = []
+    for snapshot in sampled_data:
+        emotion_pcts = snapshot.get('emotion_percentages', {})
+        
+        high_engaged = (emotion_pcts.get('Happy', 0) + 
+                       emotion_pcts.get('Surprise', 0) + 
+                       emotion_pcts.get('Neutral', 0))
+        low_engaged = (emotion_pcts.get('Fear', 0) + 
+                      emotion_pcts.get('Sad', 0) + 
+                      emotion_pcts.get('Disgust', 0) + 
+                      emotion_pcts.get('Angry', 0))
+        
+        try:
+            time_str = datetime.fromisoformat(snapshot['timestamp']).strftime('%H:%M')
+        except:
+            time_str = 'N/A'
+        
+        trend_data.append({
+            'time': time_str,
+            'avgEngagement': round(snapshot.get('engagement', 0)),
+            'highlyEngaged': round(high_engaged),
+            'disengaged': round(low_engaged),
+            'studentsPresent': snapshot.get('total_faces', 0)
+        })
     
     trends = {
-        'period': f'Last {days} days',
-        'data': [
-            {
-                'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
-                'avgEngagement': current_engagement if i == 0 else 0,
-                'highlyEngaged': round(high_engaged_pct) if i == 0 else 0,
-                'disengaged': round(low_engaged_pct) if i == 0 else 0,
-                'studentsPresent': current_students if i == 0 else 0
-            }
-            for i in range(days - 1, -1, -1)
-        ]
+        'period': 'Last 30 minutes',
+        'data': trend_data
     }
     return jsonify(trends), 200
 
@@ -1021,8 +1066,9 @@ gb_model_loaded = load_gradient_boosting_model()
 @app.route('/api/forecast/gradient-boosting', methods=['POST'])
 def gradient_boosting_forecast():
     """
-    Gradient Boosting forecasting endpoint
-    Expects current sensor readings and returns next 10-minute forecast
+    Gradient Boosting forecasting endpoint using engineered features
+    Expects historical sensor data and returns next timestep forecast
+    Model uses rolling statistics, lagged features, and trends
     """
     if not gb_model_loaded or gb_model is None:
         return jsonify({
@@ -1033,115 +1079,154 @@ def gradient_boosting_forecast():
     try:
         import numpy as np
         import pandas as pd
+        from camera_system.iot_sensor import iot_sensor
         
-        # Get current IoT sensor data
-        if not iot_enabled or not get_iot_data:
+        # Get IoT sensor history (need at least 20 readings for feature engineering)
+        if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
             return jsonify({
                 'success': False,
-                'error': 'IoT sensors not available'
+                'error': 'IoT database logging not active. Start logging first.',
+                'message': 'Click "Start DB Logging" to enable forecasting'
             }), 503
         
-        iot_data = get_iot_data()
-        if not iot_data or not iot_data.get('timestamp'):
+        # Get recent historical data from database
+        history_data = iot_sensor.get_recent_data(limit=30)  # Get last 30 readings
+        
+        if len(history_data) < 20:
             return jsonify({
                 'success': False,
-                'error': 'No sensor data available'
+                'error': f'Insufficient data for prediction. Need at least 20 readings, have {len(history_data)}',
+                'message': 'Continue logging data to enable forecasting'
             }), 503
         
-        # Prepare input features for prediction
-        current_features = {
-            'temperature': iot_data.get('raw_temperature', 24.0),
-            'humidity': iot_data.get('raw_humidity', 50.0),
-            'gas': iot_data.get('raw_gas', 400),
-            'light': iot_data.get('raw_light', 300),
-            'sound': iot_data.get('raw_sound', 50),
-            'occupancy': classroom_data['current_stats'].get('studentsDetected', 0),
-            'hour': datetime.now().hour,
-            'minute': datetime.now().minute
-        }
+        # Create DataFrame from history
+        df = pd.DataFrame(history_data)
         
-        # Add emotion data if camera is active
-        emotion_data = current_emotion_stats.get('emotions', {})
-        current_features['happy'] = emotion_data.get('Happy', 0)
-        current_features['surprise'] = emotion_data.get('Surprise', 0)
-        current_features['neutral'] = emotion_data.get('Neutral', 0)
-        current_features['sad'] = emotion_data.get('Sad', 0)
-        current_features['angry'] = emotion_data.get('Angry', 0)
-        current_features['disgust'] = emotion_data.get('Disgust', 0)
-        current_features['fear'] = emotion_data.get('Fear', 0)
+        # Feature engineering - create rolling statistics and lagged features
+        forecast_features = ['temperature', 'humidity', 'gas', 'light', 'sound']
+        windows = [5, 10, 15, 20]
         
-        # Create DataFrame with correct column order
-        input_df = pd.DataFrame([current_features])
+        for feature in forecast_features:
+            # Rolling statistics
+            for window in windows:
+                df[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
+                df[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
+                df[f'{feature}_roll_min_{window}'] = df[feature].rolling(window=window, min_periods=1).min()
+                df[f'{feature}_roll_max_{window}'] = df[feature].rolling(window=window, min_periods=1).max()
+            
+            # Lagged features (previous values)
+            for lag in [1, 2, 3, 5, 10]:
+                df[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
+            
+            # Trend features
+            df[f'{feature}_trend_5'] = df[feature].diff(5)
+            df[f'{feature}_trend_10'] = df[feature].diff(10)
         
-        # Ensure columns match training data
+        # Drop NaN values from feature engineering
+        df = df.dropna()
+        
+        if len(df) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'Not enough data after feature engineering',
+                'message': 'Continue logging to accumulate more data'
+            }), 503
+        
+        # Get the last row for prediction
+        latest_row = df.iloc[-1]
+        
+        # Prepare input features (must match training feature_cols order)
         if gb_feature_columns:
-            # Reorder columns to match training data
+            # Extract features in correct order
+            X_input = []
             for col in gb_feature_columns:
-                if col not in input_df.columns:
-                    input_df[col] = 0
-            input_df = input_df[gb_feature_columns]
+                if col in df.columns:
+                    X_input.append(latest_row[col])
+                else:
+                    X_input.append(0)  # Default value for missing features
+            
+            X_input = np.array(X_input).reshape(1, -1)
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Feature columns not loaded'
+            }), 503
         
         # Scale input features
-        input_scaled = gb_scaler.transform(input_df)
+        X_scaled = gb_scaler.transform(X_input)
         
         # Make prediction (next timestep values)
-        prediction_scaled = gb_model.predict(input_scaled)
+        predicted_values = gb_model.predict(X_scaled)[0]
         
-        # Inverse transform to get actual values
-        # Assuming model predicts [temperature, humidity, gas, light, sound]
-        predicted_values = prediction_scaled[0]
+        # Get current values
+        current = {
+            'temperature': round(float(latest_row['temperature']), 1),
+            'humidity': round(float(latest_row['humidity']), 1),
+            'gas': round(float(latest_row['gas']), 0),
+            'light': round(float(latest_row['light']), 0),
+            'sound': round(float(latest_row['sound']), 0),
+            'timestamp': latest_row['timestamp'] if 'timestamp' in latest_row else datetime.now().isoformat()
+        }
         
         # Create forecast result
         forecast = {
-            'current': {
-                'temperature': round(current_features['temperature'], 1),
-                'humidity': round(current_features['humidity'], 1),
-                'gas': round(current_features['gas'], 0),
-                'light': round(current_features['light'], 0),
-                'sound': round(current_features['sound'], 0),
-                'timestamp': iot_data.get('timestamp').isoformat()
-            },
+            'current': current,
             'predicted': {
                 'temperature': round(float(predicted_values[0]), 1),
                 'humidity': round(float(predicted_values[1]), 1),
                 'gas': round(float(predicted_values[2]), 0),
                 'light': round(float(predicted_values[3]), 0),
                 'sound': round(float(predicted_values[4]), 0),
-                'timestamp': (datetime.now() + timedelta(minutes=10)).isoformat()
+                'timestamp': (datetime.now() + timedelta(minutes=1)).isoformat()  # Next reading
             },
             'changes': {
-                'temperature': round(float(predicted_values[0]) - current_features['temperature'], 2),
-                'humidity': round(float(predicted_values[1]) - current_features['humidity'], 2),
-                'gas': round(float(predicted_values[2]) - current_features['gas'], 0),
-                'light': round(float(predicted_values[3]) - current_features['light'], 0),
-                'sound': round(float(predicted_values[4]) - current_features['sound'], 0)
+                'temperature': round(float(predicted_values[0]) - current['temperature'], 2),
+                'humidity': round(float(predicted_values[1]) - current['humidity'], 2),
+                'gas': round(float(predicted_values[2]) - current['gas'], 0),
+                'light': round(float(predicted_values[3]) - current['light'], 0),
+                'sound': round(float(predicted_values[4]) - current['sound'], 0)
             }
         }
         
         # Add recommendations based on predictions
         recommendations = []
+        
+        # Temperature recommendations (optimal: 22-24°C)
         if forecast['predicted']['temperature'] > 26:
-            recommendations.append('Temperature predicted to rise - consider cooling')
+            recommendations.append('⚠️ Temperature rising → Turn ON fan/AC')
         elif forecast['predicted']['temperature'] < 20:
-            recommendations.append('Temperature predicted to drop - consider heating')
+            recommendations.append('⚠️ Temperature dropping → Reduce cooling or add heating')
         
+        # Humidity recommendations (optimal: 30-50%)
         if forecast['predicted']['humidity'] > 60:
-            recommendations.append('Humidity predicted to increase - improve ventilation')
+            recommendations.append('⚠️ Humidity increasing → Improve ventilation')
         elif forecast['predicted']['humidity'] < 30:
-            recommendations.append('Humidity predicted to decrease - consider humidifier')
+            recommendations.append('⚠️ Humidity decreasing → Consider humidifier')
         
+        # CO2 recommendations (optimal: <800 ppm)
         if forecast['predicted']['gas'] > 800:
-            recommendations.append('CO2 levels predicted to rise - increase air circulation')
+            recommendations.append('⚠️ CO₂ levels rising → Open windows or improve ventilation')
         
+        # Light recommendations (optimal: 150-250 lux)
         if forecast['predicted']['light'] < 150:
-            recommendations.append('Light levels predicted to drop - check lighting')
+            recommendations.append('⚠️ Light levels dropping → Increase lighting')
+        elif forecast['predicted']['light'] > 300:
+            recommendations.append('ℹ️ Light levels high → Consider dimming if needed')
         
-        forecast['recommendations'] = recommendations if recommendations else ['All conditions predicted to remain optimal']
+        # Sound recommendations (optimal: 35-60 dBA)
+        if forecast['predicted']['sound'] > 70:
+            recommendations.append('⚠️ Noise levels rising → Maintain quiet environment')
+        
+        if not recommendations:
+            recommendations.append('✅ All conditions predicted to remain optimal')
+        
+        forecast['recommendations'] = recommendations
         
         return jsonify({
             'success': True,
             'forecast': forecast,
-            'model': 'Gradient Boosting',
+            'model': 'Gradient Boosting (with feature engineering)',
+            'data_points_used': len(history_data),
             'generated_at': datetime.now().isoformat()
         }), 200
         

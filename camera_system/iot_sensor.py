@@ -671,6 +671,58 @@ class IoTSensorReader:
                 'record_count': 0
             }
     
+    def get_recent_data(self, limit: int = 30) -> List[Dict]:
+        """
+        Get recent sensor data from database for Gradient Boosting prediction
+        Returns list of dicts with sensor readings and metadata
+        """
+        if not self.db_logging_enabled or not self.db_connection:
+            return []
+        
+        try:
+            cursor = self.db_connection.cursor()
+            cursor.execute('''
+                SELECT timestamp, temperature, humidity, light, sound, gas,
+                       occupancy, happy, surprise, neutral, sad, angry, disgust, fear
+                FROM sensor_data
+                WHERE session_id = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+            ''', (self.db_session_id, limit))
+            
+            rows = cursor.fetchall()
+            
+            # Convert to list of dicts (reverse to chronological order)
+            data = []
+            for row in reversed(rows):
+                data.append({
+                    'timestamp': row[0],
+                    'temperature': row[1],
+                    'humidity': row[2],
+                    'light': row[3],
+                    'sound': row[4],
+                    'gas': row[5],
+                    'occupancy': row[6],
+                    'happy': row[7],
+                    'surprise': row[8],
+                    'neutral': row[9],
+                    'sad': row[10],
+                    'angry': row[11],
+                    'disgust': row[12],
+                    'fear': row[13],
+                    # Add time features for model
+                    'hour': datetime.fromisoformat(row[0]).hour if row[0] else 0,
+                    'minute': datetime.fromisoformat(row[0]).minute if row[0] else 0,
+                    'high_engagement': (row[7] or 0) + (row[8] or 0) + (row[9] or 0),  # happy + surprise + neutral
+                    'low_engagement': (row[10] or 0) + (row[11] or 0) + (row[12] or 0) + (row[13] or 0)  # sad + angry + disgust + fear
+                })
+            
+            return data
+            
+        except Exception as e:
+            print(f"[IoT] Error getting recent data: {e}")
+            return []
+    
     def export_db_to_csv(self, output_file: str = None) -> Dict:
         """Export current SQLite database to CSV"""
         if not self.db_logging_enabled or not self.db_connection:
