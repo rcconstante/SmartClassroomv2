@@ -911,6 +911,12 @@ async function initAnalytics() {
         // Fetch and display initial data
         await refreshAnalyticsCharts();
         
+        // Poll analytics charts every 5 seconds for real-time updates
+        if (!window.analyticsRefreshInterval) {
+            window.analyticsRefreshInterval = setInterval(refreshAnalyticsCharts, 5000);
+            console.log('✓ Started analytics chart polling (5 second interval)');
+        }
+        
         // Use emotion history averages instead of real-time data
         if (emotionHistory.success && emotionHistory.average_emotions) {
             initAnalyticsEmotionChart(emotionHistory.average_emotions);
@@ -1474,15 +1480,24 @@ function initAnalyticsEmotionChart(emotionData = {}) {
 function updateAnalyticsEngagementChart(data) {
     if (!window.analyticsEngagementChart) return;
     
-    const hasData = data.some(d => (d.highlyEngaged > 0 || d.disengaged > 0));
+    // Filter to only show dates with actual data points
+    const filteredData = data.filter(d => d.dataPoints > 0);
+    const hasData = filteredData.length > 0;
     
-    // Update labels and data
-    window.analyticsEngagementChart.data.labels = data.map(d => 
-        new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    );
-    
-    window.analyticsEngagementChart.data.datasets[0].data = data.map(d => d.highlyEngaged || 0);
-    window.analyticsEngagementChart.data.datasets[1].data = data.map(d => d.disengaged || 0);
+    if (hasData) {
+        // Update labels and data with filtered data
+        window.analyticsEngagementChart.data.labels = filteredData.map(d => 
+            new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        );
+        
+        window.analyticsEngagementChart.data.datasets[0].data = filteredData.map(d => d.highlyEngaged || 0);
+        window.analyticsEngagementChart.data.datasets[1].data = filteredData.map(d => d.disengaged || 0);
+    } else {
+        // Show "No data" state
+        window.analyticsEngagementChart.data.labels = ['No Data'];
+        window.analyticsEngagementChart.data.datasets[0].data = [0];
+        window.analyticsEngagementChart.data.datasets[1].data = [0];
+    }
     
     // Update tooltip enabled state
     window.analyticsEngagementChart.options.plugins.tooltip.enabled = hasData;

@@ -375,7 +375,7 @@ async function fetchEnvironmentalPredictions() {
         const result = await response.json();
         
         if (result.success) {
-            console.log('Environmental Predictions:', result);
+            console.log('✓ Environmental Predictions received:', result);
             
             // Update forecast chart
             updateForecastChart(result);
@@ -386,6 +386,11 @@ async function fetchEnvironmentalPredictions() {
             // Show notifications for recommendations
             if (result.recommendations && result.recommendations.length > 0) {
                 showPredictionNotifications(result.recommendations, result.comfort_classification);
+            }
+        } else {
+            console.warn('⚠ Predictions not ready:', result.error || 'Unknown error');
+            if (result.current_buffer_size !== undefined) {
+                console.log(`ℹ Collecting data... ${result.current_buffer_size}/${result.required_buffer_size} readings`);
             }
         }
     } catch (error) {
@@ -464,8 +469,8 @@ async function updateEnvironmentStatus() {
             // Update forecast chart
             updateForecastChart(result);
             
-            // Show notifications for recommendations
-            showPredictionNotifications(result.recommendations, result.comfort_classification);
+            // NOTE: Notifications are handled by fetchEnvironmentalPredictions (every 1 min)
+            // Do NOT show notifications here to prevent duplicates
         }
     } catch (error) {
         // If predictions not available, just show N/A
@@ -881,16 +886,21 @@ function initForecastChart() {
 
 // Update forecast chart with prediction data
 function updateForecastChart(predictionData) {
-    if (!forecastChart) return;
+    if (!forecastChart) {
+        console.warn('⚠ Forecast chart not initialized');
+        return;
+    }
     
     const current = predictionData.current_conditions || {};
     const predicted = predictionData.predicted_conditions || {};
     
     // Only update if we have actual prediction data
     if (!predicted.predicted_temperature) {
-        console.debug('No forecast data available yet');
+        console.debug('No forecast data available yet - waiting for predictions');
         return;
     }
+    
+    console.log('✓ Updating forecast chart with data:', { current, predicted });
     
     // Update chart data with actual values
     forecastChart.data.datasets[0].data = [
@@ -910,6 +920,7 @@ function updateForecastChart(predictionData) {
     ];
     
     forecastChart.update();
+    console.log('✓ Forecast chart updated');
 }
 
 // Initialize 7 Emotions Chart (for Engagement States card)
@@ -1694,8 +1705,7 @@ function initNotificationSystem() {
     if (!notificationContainer) {
         notificationContainer = document.createElement('div');
         notificationContainer.id = 'notificationContainer';
-        notificationContainer.className = 'fixed top-4 right-4 z-50 space-y-3 max-w-md';
-        notificationContainer.style.cssText = 'pointer-events: none;';
+        notificationContainer.className = 'notification-container';
         document.body.appendChild(notificationContainer);
     }
     
@@ -1908,45 +1918,36 @@ function showNotification({ type, title, message, duration = 10000, severity = '
     
     // Show toast notification
     const notification = document.createElement('div');
-    notification.className = `notification-item transform transition-all duration-300 ease-in-out`;
-    notification.style.cssText = 'pointer-events: auto; opacity: 0; transform: translateX(100px);';
+    notification.className = 'notification';
     
     // Severity colors
     const severityConfig = {
-        'error': { bg: 'bg-red-500', border: 'border-red-600', icon: '🚨' },
-        'warning': { bg: 'bg-orange-500', border: 'border-orange-600', icon: '⚠️' },
-        'info': { bg: 'bg-blue-500', border: 'border-blue-600', icon: 'ℹ️' },
-        'success': { bg: 'bg-green-500', border: 'border-green-600', icon: '✓' }
+        'error': { bg: '#ef4444', border: '#dc2626' },
+        'warning': { bg: '#f97316', border: '#ea580c' },
+        'info': { bg: '#3b82f6', border: '#2563eb' },
+        'success': { bg: '#10b981', border: '#059669' }
     };
     
     const config = severityConfig[severity] || severityConfig['info'];
     
     notification.innerHTML = `
-        <div class="${config.bg} ${config.border} border-l-4 text-white p-4 rounded-lg shadow-lg max-w-md">
-            <div class="flex items-start">
-                <div class="flex-shrink-0">
-                    <span class="text-2xl">${icon}</span>
-                </div>
-                <div class="ml-3 flex-1">
-                    <h3 class="text-sm font-bold">${title}</h3>
-                    <p class="mt-1 text-sm opacity-90">${message}</p>
-                </div>
-                <button onclick="this.closest('.notification-item').remove()" 
-                        class="ml-3 flex-shrink-0 text-white hover:text-gray-200 focus:outline-none">
-                    <span class="text-xl">&times;</span>
-                </button>
+        <div style="background: ${config.bg}; border-left: 4px solid ${config.border}; color: white; padding: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 400px; display: flex; align-items: flex-start; gap: 12px;">
+            <div style="font-size: 24px; flex-shrink: 0;">
+                ${icon}
             </div>
+            <div style="flex: 1; min-width: 0;">
+                <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 4px 0;">${title}</h3>
+                <p style="font-size: 13px; margin: 0; opacity: 0.95;">${message}</p>
+            </div>
+            <button onclick="this.closest('.notification').remove()" 
+                    style="background: none; border: none; color: white; cursor: pointer; font-size: 20px; padding: 0; line-height: 1; opacity: 0.8; flex-shrink: 0;">
+                &times;
+            </button>
         </div>
     `;
     
     notificationContainer.appendChild(notification);
     activeNotifications.push(notification);
-    
-    // Animate in
-    setTimeout(() => {
-        notification.style.opacity = '1';
-        notification.style.transform = 'translateX(0)';
-    }, 10);
     
     // Auto-remove after duration
     setTimeout(() => {
