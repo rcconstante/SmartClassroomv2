@@ -495,6 +495,7 @@ async function checkAndShowAlerts() {
     } catch (error) {
         console.error('[Alerts] Error checking alerts:', error);
     }
+}
 
 // Fetch emotion data for dashboard
 async function fetchDashboardEmotionData() {
@@ -1540,5 +1541,4 @@ function updateLSTMChartWithAPIData(apiData) {
 function updateLSTMChartSimulation() {
     // LSTM functionality removed - no model available yet
     return;
-}
 }
