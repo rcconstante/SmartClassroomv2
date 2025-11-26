@@ -372,8 +372,6 @@ def get_iot_sensor_alerts():
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""
-    from camera_system.iot_sensor import iot_sensor
-    
     if not iot_enabled or not iot_sensor or not iot_sensor.is_connected:
         return jsonify({
             'success': False,
@@ -393,8 +391,6 @@ def start_iot_logging():
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
     """Stop IoT database logging and CV data sync"""
-    from camera_system.iot_sensor import iot_sensor
-    
     if not iot_enabled or not iot_sensor:
         return jsonify({
             'success': False,
@@ -412,8 +408,6 @@ def stop_iot_logging():
 @app.route('/api/iot/logging-status', methods=['GET'])
 def get_logging_status():
     """Get current database logging status"""
-    from camera_system.iot_sensor import iot_sensor
-    
     if not iot_enabled or not iot_sensor:
         return jsonify({
             'enabled': False,
@@ -429,8 +423,6 @@ def get_logging_status():
 @app.route('/api/iot/export-csv', methods=['POST'])
 def export_iot_csv():
     """Export current SQLite database to CSV"""
-    from camera_system.iot_sensor import iot_sensor
-    
     if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
         return jsonify({
             'success': False,
@@ -666,8 +658,6 @@ def get_iot_latest():
 @app.route('/api/iot/history', methods=['GET'])
 def get_iot_history():
     """Get IoT sensor history data (all available readings)"""
-    from camera_system.iot_sensor import iot_sensor
-    
     limit = request.args.get('limit', default=1000, type=int)
     limit = min(limit, 5000)
     
@@ -1106,7 +1096,7 @@ def get_alerts():
 try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
-    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
+    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts, iot_sensor
     from camera_system.ml_models import get_environmental_predictor
     from camera_system.analytics_db import get_analytics_db
     CAMERA_SYSTEM_AVAILABLE = True
@@ -1123,6 +1113,7 @@ except ImportError as e:
     get_iot_alerts = None
     get_environmental_predictor = None
     get_analytics_db = None
+    iot_sensor = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
@@ -1150,7 +1141,6 @@ last_emotion_snapshot = time.time()
 def cv_data_sync_worker():
     """Background worker to sync CV data to IoT sensor every 10 seconds"""
     global cv_data_sync_running, current_emotion_stats, classroom_data, environmental_predictor
-    from camera_system.iot_sensor import iot_sensor
     
     print("[CV Sync] Background worker started - syncing every 10 seconds")
     
