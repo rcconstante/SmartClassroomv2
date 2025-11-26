@@ -529,11 +529,14 @@ class IoTSensorReader:
                 'db_file': self.db_file
             }
         
-        # Check if connected to Arduino
-        if not self.is_connected:
+        # Check if we have sensor data flowing (more reliable than is_connected)
+        has_data = self.current_data.get('timestamp') is not None
+        is_active = self.is_connected or self.is_reading or has_data
+        
+        if not is_active:
             return {
                 'success': False,
-                'message': 'IoT sensors not connected'
+                'message': 'IoT sensors not connected or no data available'
             }
         
         try:

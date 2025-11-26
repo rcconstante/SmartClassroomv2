@@ -372,16 +372,24 @@ def get_iot_sensor_alerts():
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""
-    # Import the module's iot_sensor directly to get the updated reference
-    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-    
-    if not iot_enabled or not current_iot_sensor or not current_iot_sensor.is_connected:
+    # Check if IoT sensor is available and has data (is_reading or has recent data)
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'success': False,
-            'message': 'Please connect the IoT sensor first'
+            'message': 'IoT sensor module not initialized'
         }), 503
     
-    result = current_iot_sensor.start_db_logging()
+    # Check if sensor is connected OR has recent data (dashboard working)
+    has_recent_data = (iot_sensor.current_data.get('timestamp') is not None)
+    is_sensor_active = iot_sensor.is_connected or iot_sensor.is_reading or has_recent_data
+    
+    if not is_sensor_active:
+        return jsonify({
+            'success': False,
+            'message': 'IoT sensors not connected. Please connect Arduino and restart the server.'
+        }), 503
+    
+    result = iot_sensor.start_db_logging()
     
     # Start CV data sync thread if logging started successfully
     if result['success']:
@@ -394,10 +402,7 @@ def start_iot_logging():
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
     """Stop IoT database logging and CV data sync"""
-    # Import the module's iot_sensor directly to get the updated reference
-    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-    
-    if not iot_enabled or not current_iot_sensor:
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'success': False,
             'message': 'IoT sensor not initialized'
@@ -406,7 +411,7 @@ def stop_iot_logging():
     # Stop CV data sync thread
     stop_cv_data_sync()
     
-    result = current_iot_sensor.stop_db_logging()
+    result = iot_sensor.stop_db_logging()
     status_code = 200 if result['success'] else 400
     return jsonify(result), status_code
 
@@ -414,10 +419,7 @@ def stop_iot_logging():
 @app.route('/api/iot/logging-status', methods=['GET'])
 def get_logging_status():
     """Get current database logging status"""
-    # Import the module's iot_sensor directly to get the updated reference
-    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-    
-    if not iot_enabled or not current_iot_sensor:
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'enabled': False,
             'db_file': None,
@@ -425,23 +427,20 @@ def get_logging_status():
             'record_count': 0
         })
     
-    status = current_iot_sensor.get_db_logging_status()
+    status = iot_sensor.get_db_logging_status()
     return jsonify(status)
 
 
 @app.route('/api/iot/export-csv', methods=['POST'])
 def export_iot_csv():
     """Export current SQLite database to CSV"""
-    # Import the module's iot_sensor directly to get the updated reference
-    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-    
-    if not iot_enabled or not current_iot_sensor or not current_iot_sensor.db_logging_enabled:
+    if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
         return jsonify({
             'success': False,
             'message': 'No active database logging session'
         }), 400
     
-    result = current_iot_sensor.export_db_to_csv()
+    result = iot_sensor.export_db_to_csv()
     
     if result['success']:
         # Return the CSV file for download
@@ -599,8 +598,8 @@ def get_environmental_predictions():
                 'message': 'Waiting for sensor readings...'
             }), 503
         
-        # Get prediction summary
-        summary = environmental_predictor.get_prediction_summary({
+        # Prepare current data for predictor
+        current_data = {
             'temperature': iot_data.get('raw_temperature', 24.0),
             'humidity': iot_data.get('raw_humidity', 55.0),
             'gas': iot_data.get('raw_gas', 500),
@@ -610,14 +609,24 @@ def get_environmental_predictions():
             'high_engagement': current_emotion_stats.get('high_engagement', 0),
             'low_engagement': current_emotion_stats.get('low_engagement', 0),
             'timestamp': iot_data.get('timestamp')
-        })
+        }
+        
+        # Add current reading to buffer (this helps fill up the buffer faster)
+        environmental_predictor.add_reading(current_data)
+        
+        # Get prediction summary
+        summary = environmental_predictor.get_prediction_summary(current_data)
         
         if not summary.get('is_available'):
+            # Return buffer status so frontend can show progress
+            buffer_size = len(environmental_predictor.history_buffer)
+            required_size = environmental_predictor.sequence_length
             return jsonify({
                 'success': False,
                 'error': summary.get('error', 'Prediction not available'),
-                'current_buffer_size': summary.get('current_buffer_size', 0),
-                'required_buffer_size': summary.get('required_buffer_size', 20)
+                'current_buffer_size': buffer_size,
+                'required_buffer_size': required_size,
+                'message': f'Collecting data... {buffer_size}/{required_size} readings (need ~{(required_size - buffer_size) * 15} more seconds)'
             }), 200
         
         return jsonify({
@@ -669,7 +678,7 @@ def get_iot_latest():
 
 @app.route('/api/iot/history', methods=['GET'])
 def get_iot_history():
-    """Get IoT sensor history data (all available readings)"""
+    """Get IoT sensor history data from database or current readings"""
     limit = request.args.get('limit', default=1000, type=int)
     limit = min(limit, 5000)
     
@@ -681,9 +690,53 @@ def get_iot_history():
         }), 200
     
     history_data = []
-    try:
-        while not iot_sensor.data_queue.empty() and len(history_data) < limit:
-            data = iot_sensor.data_queue.get_nowait()
+    
+    # Try to read from the active database if logging is enabled
+    if iot_sensor.db_logging_enabled and iot_sensor.db_connection:
+        try:
+            cursor = iot_sensor.db_connection.cursor()
+            cursor.execute('''
+                SELECT timestamp, temperature, humidity, light, sound, gas, 
+                       environmental_score, occupancy, happy, surprise, neutral, 
+                       sad, angry, disgust, fear
+                FROM sensor_data
+                WHERE session_id = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+            ''', (iot_sensor.db_session_id, limit))
+            
+            rows = cursor.fetchall()
+            
+            for row in rows:
+                history_data.append({
+                    'timestamp': row[0],
+                    'temperature': row[1],
+                    'humidity': row[2],
+                    'light': row[3],
+                    'sound': row[4],
+                    'gas': row[5],
+                    'environmental_score': row[6],
+                    'occupancy': row[7],
+                    'happy': row[8],
+                    'surprise': row[9],
+                    'neutral': row[10],
+                    'sad': row[11],
+                    'angry': row[12],
+                    'disgust': row[13],
+                    'fear': row[14]
+                })
+            
+            # Reverse to show oldest first (for table display)
+            history_data.reverse()
+            
+        except Exception as e:
+            print(f"[IoT] Error reading from database: {e}")
+    
+    # If no database data, try the queue and current data
+    if not history_data:
+        try:
+            # Don't consume queue - just peek current data
+            data = get_iot_data()
             if data and data.get('timestamp'):
                 history_data.append({
                     'timestamp': data.get('timestamp').isoformat(),
@@ -702,29 +755,8 @@ def get_iot_history():
                     'disgust': int(data.get('disgust', 0)),
                     'fear': int(data.get('fear', 0))
                 })
-    except:
-        pass
-    
-    if not history_data:
-        data = get_iot_data()
-        if data and data.get('timestamp'):
-            history_data.append({
-                'timestamp': data.get('timestamp').isoformat(),
-                'temperature': round(data.get('raw_temperature', 0), 1),
-                'humidity': round(data.get('raw_humidity', 0), 1),
-                'light': round(data.get('raw_light', 0), 1),
-                'sound': data.get('raw_sound', 0),
-                'gas': data.get('raw_gas', 0),
-                'environmental_score': round(data.get('environmental_score', 0), 1),
-                'occupancy': data.get('occupancy', 0),
-                'happy': int(data.get('happy', 0)),
-                'surprise': int(data.get('surprise', 0)),
-                'neutral': int(data.get('neutral', 0)),
-                'sad': int(data.get('sad', 0)),
-                'angry': int(data.get('angry', 0)),
-                'disgust': int(data.get('disgust', 0)),
-                'fear': int(data.get('fear', 0))
-            })
+        except:
+            pass
     
     return jsonify({
         'success': True,
@@ -1161,31 +1193,29 @@ def cv_data_sync_worker():
     
     while cv_data_sync_running:
         try:
-            # Get current CV data
-            occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
-            # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
-            emotion_counts = current_emotion_stats.get('emotions', {})
-            
-            # Get high/low engagement counts
-            high_engagement = current_emotion_stats.get('high_engagement', 0)
-            low_engagement = current_emotion_stats.get('low_engagement', 0)
-            
-            # Always log to analytics database (independent of IoT logging)
-            if analytics_db:
-                analytics_db.log_engagement(
-                    high_engagement=high_engagement,
-                    low_engagement=low_engagement,
-                    students_detected=occupancy,
-                    emotion_counts=emotion_counts
-                )
-                analytics_db.log_presence(students_count=occupancy)
-            
-            # Only sync to IoT sensor if IoT logging is enabled
-            # Import the module's iot_sensor directly to get the updated reference
-            from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-            if iot_enabled and current_iot_sensor and current_iot_sensor.db_logging_enabled:
+            # Only sync if IoT logging is enabled
+            if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
+                # Get current CV data
+                occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
+                # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
+                emotion_counts = current_emotion_stats.get('emotions', {})
+                
+                # Get high/low engagement counts
+                high_engagement = current_emotion_stats.get('high_engagement', 0)
+                low_engagement = current_emotion_stats.get('low_engagement', 0)
+                
                 # Update IoT sensor with CV data (counts, not percentages)
-                current_iot_sensor.update_cv_data(occupancy, emotion_counts)
+                iot_sensor.update_cv_data(occupancy, emotion_counts)
+                
+                # Log to analytics database
+                if analytics_db:
+                    analytics_db.log_engagement(
+                        high_engagement=high_engagement,
+                        low_engagement=low_engagement,
+                        students_detected=occupancy,
+                        emotion_counts=emotion_counts
+                    )
+                    analytics_db.log_presence(students_count=occupancy)
                 
                 # Update environmental predictor with current data
                 if environmental_predictor and environmental_predictor.is_loaded:
@@ -1204,9 +1234,8 @@ def cv_data_sync_worker():
                             'timestamp': iot_data.get('timestamp')
                         }
                         environmental_predictor.add_reading(predictor_data)
-            
-            if occupancy > 0 or high_engagement > 0 or low_engagement > 0:
-                print(f"[CV Sync] Logged analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
+                
+                print(f"[CV Sync] Updated IoT & Analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")
@@ -1365,9 +1394,6 @@ def start_camera():
         success = active_camera_stream.start()
         
         if success:
-            # Start CV data sync thread to log analytics data
-            start_cv_data_sync()
-            
             return jsonify({
                 'success': True,
                 'camera_id': camera_id,
@@ -1394,12 +1420,6 @@ def stop_camera():
         if active_camera_stream:
             active_camera_stream.stop()
             active_camera_stream = None
-        
-        # Stop CV data sync if IoT logging is not active
-        # (if IoT logging is active, keep syncing IoT data)
-        from camera_system.iot_sensor import iot_sensor as current_iot_sensor
-        if not (iot_enabled and current_iot_sensor and current_iot_sensor.db_logging_enabled):
-            stop_cv_data_sync()
         
         # Reset emotion stats
         current_emotion_stats = {
@@ -1456,6 +1476,10 @@ def generate_frames():
     """Generator function to stream video frames with emotion detection"""
     global active_camera_stream, emotion_detector, current_emotion_stats
     
+    # Variables for analytics logging (every 10 seconds)
+    last_analytics_log = time.time()
+    analytics_log_interval = 10  # Log to analytics DB every 10 seconds
+    
     while True:
         # Check if camera is still active
         if not active_camera_stream or not active_camera_stream.is_running:
@@ -1499,6 +1523,31 @@ def generate_frames():
                             # Memory usage: ~1KB per snapshot = ~14.4MB for 4 hours
                             
                             last_emotion_snapshot = current_time
+                        
+                        # Log to analytics database every 10 seconds (for charts)
+                        if current_time - last_analytics_log >= analytics_log_interval:
+                            try:
+                                analytics_db = get_analytics_db() if get_analytics_db else None
+                                if analytics_db:
+                                    # Log engagement data
+                                    high_engagement = emotion_stats.get('high_engagement', 0)
+                                    low_engagement = emotion_stats.get('low_engagement', 0)
+                                    students_detected = emotion_stats['total_faces']
+                                    emotion_counts = emotion_stats.get('emotions', {})
+                                    
+                                    analytics_db.log_engagement(
+                                        high_engagement=high_engagement,
+                                        low_engagement=low_engagement,
+                                        students_detected=students_detected,
+                                        emotion_counts=emotion_counts
+                                    )
+                                    
+                                    # Log presence data (for classroom presence chart)
+                                    analytics_db.log_presence(students_count=students_detected)
+                                    
+                                last_analytics_log = current_time
+                            except Exception as e:
+                                print(f"Error logging analytics: {e}")
                         
                         frame = annotated_frame
                     except Exception as e:
