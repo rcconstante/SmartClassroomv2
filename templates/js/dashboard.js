@@ -359,8 +359,8 @@ function loadDashboard() {
         }
     }, 2000);
     
-    // Fetch environmental predictions every 15 seconds (when IoT is active)
-    setInterval(fetchEnvironmentalPredictions, 15000);
+    // Fetch environmental predictions every 60 seconds (for 1-minute ahead forecasting)
+    setInterval(fetchEnvironmentalPredictions, 60000);
     
     // Update environment status every 10 seconds
     setInterval(updateEnvironmentStatus, 10000);

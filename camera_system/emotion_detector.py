@@ -268,31 +268,18 @@ class EmotionDetector:
     
     def get_engagement_from_emotions(self) -> float:
         """
-        Calculate engagement score based on FER-2013 emotions
-        Positive emotions = higher engagement, negative = lower
+        Calculate engagement percentage based on high vs low engagement counts
+        Engagement = (high_engagement / total_faces) * 100
         """
-        if sum(self.emotion_counts.values()) == 0:
+        total_faces = sum(self.emotion_counts.values())
+        
+        if total_faces == 0:
             return 0.0
         
-        # Weight FER-2013 emotions for engagement score
-        engagement_weights = {
-            'Happy': 1.0,      # Highly engaged
-            'Surprise': 0.8,   # Engaged, attentive
-            'Neutral': 0.6,    # Moderate engagement
-            'Sad': 0.3,        # Low engagement
-            'Angry': 0.2,      # Frustrated/disengaged
-            'Disgust': 0.2,    # Disengaged
-            'Fear': 0.4        # Confused/uncertain
-        }
+        high_engaged = sum(self.emotion_counts[e] for e in HIGH_ENGAGEMENT_EMOTIONS)
         
-        total_faces = sum(self.emotion_counts.values())
-        weighted_sum = sum(
-            self.emotion_counts[emotion] * weight 
-            for emotion, weight in engagement_weights.items()
-        )
-        
-        engagement = (weighted_sum / total_faces) * 100
-        return round(engagement, 2)
+        engagement_pct = (high_engaged / total_faces) * 100
+        return round(engagement_pct, 2)
     
     def get_occupancy_count(self, frame) -> int:
         """

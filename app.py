@@ -891,16 +891,30 @@ def get_engagement_trends():
     start_date = request.args.get('start_date', default=None, type=str)
     end_date = request.args.get('end_date', default=None, type=str)
     
-    # Get analytics database
     analytics_db = get_analytics_db() if get_analytics_db else None
     
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    high_engaged = current_emotion_stats.get('high_engagement', 0)
+    low_engaged = current_emotion_stats.get('low_engagement', 0)
+    
     if analytics_db:
-        # Get data from database
         trends_data = analytics_db.get_engagement_trends(
             start_date=start_date,
             end_date=end_date,
             days=days
         )
+        
+        if trends_data and len(trends_data) > 0:
+            today_str = datetime.now().date().isoformat()
+            has_today_data = any(d['date'] == today_str and d['dataPoints'] > 0 for d in trends_data)
+            
+            if not has_today_data and current_students > 0:
+                for item in trends_data:
+                    if item['date'] == today_str:
+                        item['highlyEngaged'] = high_engaged
+                        item['disengaged'] = low_engaged
+                        item['studentsPresent'] = current_students
+                        item['dataPoints'] = 1
         
         trends = {
             'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
@@ -908,31 +922,24 @@ def get_engagement_trends():
             'source': 'database'
         }
     else:
-        # Fallback to current session data only
-        emotion_data = current_emotion_stats.get('engagement_summary', {})
-        high_engagement = emotion_data.get('high_engagement', 0)
-        low_engagement = emotion_data.get('low_engagement', 0)
-        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
-        
         trends = {
             'period': f'Current session only',
             'data': [],
             'source': 'session'
         }
         
-        # Only populate today's data
         for i in range(days - 1, -1, -1):
             date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
             
-            if i == 0:  # Today (system running)
+            if i == 0:
                 trends['data'].append({
                     'date': date,
-                    'highlyEngaged': high_engagement,
-                    'disengaged': low_engagement,
+                    'highlyEngaged': high_engaged,
+                    'disengaged': low_engaged,
                     'studentsPresent': current_students,
-                    'dataPoints': 1
+                    'dataPoints': 1 if current_students > 0 else 0
                 })
-            else:  # Past days (no data)
+            else:
                 trends['data'].append({
                     'date': date,
                     'highlyEngaged': 0,
@@ -1031,16 +1038,27 @@ def get_presence_trends():
     start_date = request.args.get('start_date', default=None, type=str)
     end_date = request.args.get('end_date', default=None, type=str)
     
-    # Get analytics database
     analytics_db = get_analytics_db() if get_analytics_db else None
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     
     if analytics_db:
-        # Get data from database
         presence_data = analytics_db.get_presence_trends(
             start_date=start_date,
             end_date=end_date,
             days=days
         )
+        
+        if presence_data and len(presence_data) > 0:
+            today_str = datetime.now().date().isoformat()
+            has_today_data = any(d['date'] == today_str and d['dataPoints'] > 0 for d in presence_data)
+            
+            if not has_today_data and current_students > 0:
+                for item in presence_data:
+                    if item['date'] == today_str:
+                        item['avgStudents'] = current_students
+                        item['maxStudents'] = current_students
+                        item['minStudents'] = current_students
+                        item['dataPoints'] = 1
         
         result = {
             'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
@@ -1048,9 +1066,6 @@ def get_presence_trends():
             'source': 'database'
         }
     else:
-        # Fallback to current session data
-        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
-        
         result = {
             'period': 'Current session only',
             'data': [],
@@ -1064,7 +1079,7 @@ def get_presence_trends():
                 'avgStudents': current_students if i == 0 else 0,
                 'maxStudents': current_students if i == 0 else 0,
                 'minStudents': current_students if i == 0 else 0,
-                'dataPoints': 1 if i == 0 else 0
+                'dataPoints': 1 if i == 0 and current_students > 0 else 0
             })
     
     return jsonify(result), 200
@@ -1734,6 +1749,15 @@ if __name__ == '__main__':
     print("=" * 50)
     print("🎓 Smart Classroom Backend Server")
     print("=" * 50)
+    
+    # Initialize analytics database on startup
+    if get_analytics_db:
+        try:
+            analytics_db = get_analytics_db()
+            print("✓ Analytics database initialized")
+        except Exception as e:
+            print(f"⚠ Warning: Analytics database initialization failed: {e}")
+    
     print("Server running on: http://localhost:5000")
     print("API endpoints available at: http://localhost:5000/api/")
     print("=" * 50)

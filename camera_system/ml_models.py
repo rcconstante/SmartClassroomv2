@@ -13,8 +13,11 @@ import numpy as np
 import pandas as pd
 import pickle
 import os
+import warnings
 from datetime import datetime
 from collections import deque
+
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
 
 class BaseModel(ABC):
@@ -53,7 +56,7 @@ class EnvironmentalPredictor:
                  rf_model_path='static/model/random_forest_classifier.pkl',
                  scaler_path='static/model/gb_scaler.pkl',
                  features_path='static/model/feature_columns.pkl',
-                 sequence_length=20):
+                 sequence_length=4):
         """
         Initialize the prediction pipeline
         
@@ -62,7 +65,7 @@ class EnvironmentalPredictor:
             rf_model_path: Path to Random Forest classifier model
             scaler_path: Path to the scaler for GB model
             features_path: Path to feature columns definition
-            sequence_length: Number of historical readings for forecasting (default 20)
+            sequence_length: Number of historical readings for forecasting (default 4 for 1-min ahead)
         """
         self.gb_model = None
         self.rf_model = None
