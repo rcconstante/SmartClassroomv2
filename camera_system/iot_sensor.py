@@ -465,18 +465,13 @@ class IoTSensorReader:
         return True
     
     def stop_reading(self):
-        """
-        Stop reading sensor data and close database if active
-        
-        Warning: This will stop all IoT functionality including dashboard updates
-        """
+        """Stop reading sensor data"""
         self.is_reading = False
         if self.reading_thread:
             self.reading_thread.join(timeout=2)
         
         # Stop database logging if active
         if self.db_logging_enabled:
-            print("[IoT] ⚠ Stopping database logging because sensor reading stopped")
             self.stop_db_logging()
         
         print("[IoT] Sensor reading stopped")
@@ -516,12 +511,7 @@ class IoTSensorReader:
         }
     
     def start_db_logging(self) -> Dict:
-        """
-        Start logging sensor data to SQLite database
-        
-        Note: Sensor data reading should already be active from initialize_iot().
-        This method only enables database storage - data is already being collected.
-        """
+        """Start logging to a new SQLite database and begin sensor data gathering"""
         if self.db_logging_enabled:
             return {
                 'success': False,
@@ -529,14 +519,11 @@ class IoTSensorReader:
                 'db_file': self.db_file
             }
         
-        # Check if we have sensor data flowing (more reliable than is_connected)
-        has_data = self.current_data.get('timestamp') is not None
-        is_active = self.is_connected or self.is_reading or has_data
-        
-        if not is_active:
+        # Check if connected to Arduino
+        if not self.is_connected:
             return {
                 'success': False,
-                'message': 'IoT sensors not connected or no data available'
+                'message': 'IoT sensors not connected'
             }
         
         try:
@@ -588,16 +575,12 @@ class IoTSensorReader:
             
             self.db_logging_enabled = True
             
-            # Sensor reading should already be active from initialize_iot()
-            # Just confirm it's running and log a message
-            if self.is_reading:
-                print(f"[IoT] ✓ Database logging started: {self.db_file}")
-                print(f"[IoT] ℹ Sensor data already streaming (started at initialization)")
-            else:
-                # Failsafe: start reading if somehow it's not running
+            # Start sensor reading thread if not already running
+            if not self.is_reading:
                 self.start_reading()
-                print(f"[IoT] ✓ Database logging started: {self.db_file}")
                 print(f"[IoT] ✓ Sensor data gathering started")
+            
+            print(f"[IoT] ✓ Database logging started: {self.db_file}")
             
             return {
                 'success': True,
@@ -614,11 +597,7 @@ class IoTSensorReader:
             }
     
     def stop_db_logging(self) -> Dict:
-        """
-        Stop database logging but keep sensor data reading active
-        
-        Note: This only stops saving to database - sensor continues feeding dashboard
-        """
+        """Stop database logging and sensor data gathering"""
         if not self.db_logging_enabled:
             return {
                 'success': False,
@@ -626,10 +605,13 @@ class IoTSensorReader:
             }
         
         try:
-            # DO NOT stop sensor reading - it should continue for dashboard
-            # Only close the database connection
+            # Stop sensor reading thread
+            if self.is_reading:
+                self.is_reading = False
+                if self.reading_thread:
+                    self.reading_thread.join(timeout=2)
+                print(f"[IoT] ✓ Sensor data gathering stopped")
             
-            record_count = 0
             if self.db_connection:
                 # Get final record count
                 cursor = self.db_connection.cursor()
@@ -645,11 +627,10 @@ class IoTSensorReader:
             self.db_session_id = None
             
             print(f"[IoT] ✓ Database logging stopped: {db_file} ({record_count} records)")
-            print(f"[IoT] ℹ Sensor data still streaming to dashboard")
             
             return {
                 'success': True,
-                'message': 'Database logging stopped (sensor still active)',
+                'message': 'Database logging stopped',
                 'db_file': db_file,
                 'record_count': record_count
             }
@@ -822,17 +803,15 @@ def initialize_iot(port: str = None, baudrate: int = 9600) -> bool:
     """
     Initialize IoT sensor reader with graceful fallback
     
-    This function:
-    1. Connects to the Arduino/ESP32 via serial port
-    2. Automatically starts reading sensor data for dashboard display
-    3. Database logging is controlled separately via start_db_logging()
+    Note: This only connects to the Arduino, but does NOT start reading data.
+    Data gathering will start when start_db_logging() is called from the UI.
     
     Args:
         port: Serial port (e.g., 'COM3')
-        baudrate: Serial baud rate (default 9600)
+        baudrate: Serial baud rate (default 115200)
     
     Returns:
-        True if initialized successfully, False if not (system will continue without IoT)
+        True if initialized successfully, False if not (system will use simulated data)
     """
     global iot_sensor
     
@@ -880,8 +859,3 @@ def get_iot_alerts() -> List[Dict]:
     if iot_sensor:
         return iot_sensor.get_alerts()
     return []
-
-def get_iot_sensor():
-    """Get the IoT sensor instance (use this instead of direct import)"""
-    global iot_sensor
-    return iot_sensor

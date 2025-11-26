@@ -228,27 +228,21 @@ def update_dashboard_stats():
 
 @app.route('/api/dashboard/engagement', methods=['GET'])
 def get_engagement_data():
-    """Get real-time engagement data from emotion detection"""
-    # Get current engagement from emotion detector
-    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
-    
-    # Get high/low engagement breakdown from current stats
-    high_engaged = current_emotion_stats.get('high_engagement', 0)
-    low_engaged = current_emotion_stats.get('low_engagement', 0)
-    total_faces = current_emotion_stats.get('total_faces', 0)
-    
-    # Calculate percentages
-    highly_engaged_pct = (high_engaged / total_faces * 100) if total_faces > 0 else 0
-    disengaged_pct = (low_engaged / total_faces * 100) if total_faces > 0 else 0
-    engaged_pct = 100 - highly_engaged_pct - disengaged_pct if total_faces > 0 else 0
-    
+    """Get real-time engagement data"""
+    # Generate mock data
     engagement_data = {
-        'current': current_engagement,
-        'history': emotion_history[-12:] if len(emotion_history) >= 12 else emotion_history,  # Last 12 readings
+        'current': random.randint(65, 85),
+        'history': [
+            {
+                'time': (datetime.now() - timedelta(minutes=i*5)).strftime('%H:%M'),
+                'value': random.randint(60, 90)
+            }
+            for i in range(12, 0, -1)
+        ],
         'breakdown': {
-            'highly_engaged': int(highly_engaged_pct),
-            'engaged': int(engaged_pct),
-            'disengaged': int(disengaged_pct)
+            'highly_engaged': random.randint(15, 25),
+            'engaged': random.randint(5, 10),
+            'disengaged': random.randint(2, 5)
         }
     }
     return jsonify(engagement_data), 200
@@ -369,89 +363,18 @@ def get_iot_sensor_alerts():
     }), 200
 
 
-@app.route('/api/iot/reconnect', methods=['POST'])
-def reconnect_iot():
-    """Reconnect to IoT sensors without restarting the app"""
-    global iot_enabled
-    
-    if not initialize_iot:
-        return jsonify({
-            'success': False,
-            'message': 'IoT module not available'
-        }), 503
-    
-    try:
-        # Get current sensor instance
-        sensor = get_iot_sensor() if get_iot_sensor else None
-        
-        # If sensor exists and is already connected and reading, confirm status
-        if sensor and sensor.is_connected and sensor.is_reading:
-            return jsonify({
-                'success': True,
-                'message': 'IoT sensors already connected and reading',
-                'port': sensor.port,
-                'status': sensor.get_status()
-            }), 200
-        
-        # If sensor exists but not reading, try to start reading
-        if sensor and sensor.is_connected and not sensor.is_reading:
-            if sensor.start_reading():
-                return jsonify({
-                    'success': True,
-                    'message': 'IoT sensor reading started',
-                    'port': sensor.port,
-                    'status': sensor.get_status()
-                }), 200
-        
-        # Otherwise, reinitialize completely
-        print("[IoT] Manual reconnection requested...")
-        iot_enabled = initialize_iot(port='COM5', baudrate=9600)
-        
-        if iot_enabled:
-            sensor = get_iot_sensor()
-            return jsonify({
-                'success': True,
-                'message': 'Successfully connected to IoT sensors',
-                'port': sensor.port if sensor else 'COM5',
-                'status': sensor.get_status() if sensor else {}
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to connect to Arduino. Make sure Arduino IDE Serial Monitor is closed and device is connected to COM5.'
-            }), 500
-            
-    except Exception as e:
-        print(f"[IoT] Reconnection error: {e}")
-        return jsonify({
-            'success': False,
-            'message': f'Reconnection failed: {str(e)}'
-        }), 500
-
-
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""
-    sensor = get_iot_sensor() if get_iot_sensor else None
+    from camera_system.iot_sensor import iot_sensor
     
-    # Check if IoT sensor is available and has data (is_reading or has recent data)
-    if not iot_enabled or not sensor:
+    if not iot_enabled or not iot_sensor or not iot_sensor.is_connected:
         return jsonify({
             'success': False,
-            'message': 'IoT sensor module not initialized'
+            'message': 'IoT sensors not connected'
         }), 503
     
-    # Check if sensor is connected OR has recent data (dashboard working)
-    has_recent_data = (sensor.current_data.get('timestamp') is not None)
-    is_sensor_active = sensor.is_connected or sensor.is_reading or has_recent_data
-    
-    if not is_sensor_active:
-        return jsonify({
-            'success': False,
-            'message': 'IoT sensors not connected. Please connect Arduino and restart the server.'
-        }), 503
-    
-    result = sensor.start_db_logging()
+    result = iot_sensor.start_db_logging()
     
     # Start CV data sync thread if logging started successfully
     if result['success']:
@@ -464,9 +387,9 @@ def start_iot_logging():
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
     """Stop IoT database logging and CV data sync"""
-    sensor = get_iot_sensor() if get_iot_sensor else None
+    from camera_system.iot_sensor import iot_sensor
     
-    if not iot_enabled or not sensor:
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'success': False,
             'message': 'IoT sensor not initialized'
@@ -475,7 +398,7 @@ def stop_iot_logging():
     # Stop CV data sync thread
     stop_cv_data_sync()
     
-    result = sensor.stop_db_logging()
+    result = iot_sensor.stop_db_logging()
     status_code = 200 if result['success'] else 400
     return jsonify(result), status_code
 
@@ -483,9 +406,9 @@ def stop_iot_logging():
 @app.route('/api/iot/logging-status', methods=['GET'])
 def get_logging_status():
     """Get current database logging status"""
-    sensor = get_iot_sensor() if get_iot_sensor else None
+    from camera_system.iot_sensor import iot_sensor
     
-    if not iot_enabled or not sensor:
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'enabled': False,
             'db_file': None,
@@ -493,22 +416,22 @@ def get_logging_status():
             'record_count': 0
         })
     
-    status = sensor.get_db_logging_status()
+    status = iot_sensor.get_db_logging_status()
     return jsonify(status)
 
 
 @app.route('/api/iot/export-csv', methods=['POST'])
 def export_iot_csv():
     """Export current SQLite database to CSV"""
-    sensor = get_iot_sensor() if get_iot_sensor else None
+    from camera_system.iot_sensor import iot_sensor
     
-    if not iot_enabled or not sensor or not sensor.db_logging_enabled:
+    if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
         return jsonify({
             'success': False,
             'message': 'No active database logging session'
         }), 400
     
-    result = sensor.export_db_to_csv()
+    result = iot_sensor.export_db_to_csv()
     
     if result['success']:
         # Return the CSV file for download
@@ -631,86 +554,6 @@ def list_iot_databases():
             'databases': []
         }), 500
 
-
-@app.route('/api/predictions/environment', methods=['GET'])
-def get_environmental_predictions():
-    """Get environmental predictions using Gradient Boosting + Random Forest models"""
-    global environmental_predictor
-    
-    # Initialize predictor if not already done
-    if environmental_predictor is None and get_environmental_predictor:
-        environmental_predictor = get_environmental_predictor()
-    
-    if not environmental_predictor or not environmental_predictor.is_loaded:
-        return jsonify({
-            'success': False,
-            'error': 'Environmental prediction models not available',
-            'message': 'Models could not be loaded. Check model files in static/model/'
-        }), 503
-    
-    # Check if we have IoT data
-    if not iot_enabled or not get_iot_data:
-        return jsonify({
-            'success': False,
-            'error': 'IoT sensors not connected',
-            'message': 'Connect Arduino to get environmental predictions'
-        }), 503
-    
-    try:
-        # Get current sensor data
-        iot_data = get_iot_data()
-        if not iot_data or not iot_data.get('timestamp'):
-            return jsonify({
-                'success': False,
-                'error': 'No sensor data available',
-                'message': 'Waiting for sensor readings...'
-            }), 503
-        
-        # Prepare current data for predictor
-        current_data = {
-            'temperature': iot_data.get('raw_temperature', 24.0),
-            'humidity': iot_data.get('raw_humidity', 55.0),
-            'gas': iot_data.get('raw_gas', 500),
-            'light': iot_data.get('raw_light', 400),
-            'sound': iot_data.get('raw_sound', 40),
-            'occupancy': classroom_data['current_stats'].get('studentsDetected', 0),
-            'high_engagement': current_emotion_stats.get('high_engagement', 0),
-            'low_engagement': current_emotion_stats.get('low_engagement', 0),
-            'timestamp': iot_data.get('timestamp')
-        }
-        
-        # Add current reading to buffer (this helps fill up the buffer faster)
-        environmental_predictor.add_reading(current_data)
-        
-        # Get prediction summary
-        summary = environmental_predictor.get_prediction_summary(current_data)
-        
-        if not summary.get('is_available'):
-            # Return buffer status so frontend can show progress
-            buffer_size = len(environmental_predictor.history_buffer)
-            required_size = environmental_predictor.sequence_length
-            return jsonify({
-                'success': False,
-                'error': summary.get('error', 'Prediction not available'),
-                'current_buffer_size': buffer_size,
-                'required_buffer_size': required_size,
-                'message': f'Collecting data... {buffer_size}/{required_size} readings (need ~{(required_size - buffer_size) * 15} more seconds)'
-            }), 200
-        
-        return jsonify({
-            'success': True,
-            **summary
-        }), 200
-        
-    except Exception as e:
-        print(f"Error generating environmental predictions: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'Prediction error: {str(e)}'
-        }), 500
-
 @app.route('/api/iot/latest', methods=['GET'])
 def get_iot_latest():
     """Get latest IoT sensor reading (frontend expects this endpoint)"""
@@ -746,125 +589,70 @@ def get_iot_latest():
 
 @app.route('/api/iot/history', methods=['GET'])
 def get_iot_history():
-    """Get IoT sensor history data from database or current readings"""
+    """Get IoT sensor history data (all available readings)"""
+    from camera_system.iot_sensor import iot_sensor
+    
     limit = request.args.get('limit', default=1000, type=int)
     limit = min(limit, 5000)
     
-    sensor = get_iot_sensor() if get_iot_sensor else None
-    
-    if not iot_enabled or not sensor:
+    if not iot_enabled or not iot_sensor:
         return jsonify({
             'success': False,
-            'error': 'IoT sensor module not initialized. Please restart the server with Arduino connected.',
-            'data': [],
-            'status': {
-                'iot_enabled': iot_enabled,
-                'sensor_initialized': sensor is not None
-            }
+            'error': 'IoT sensors not available',
+            'data': []
         }), 200
     
     history_data = []
-    
-    # Try to read from the active database if logging is enabled
-    if sensor.db_logging_enabled and sensor.db_connection:
-        try:
-            cursor = sensor.db_connection.cursor()
-            cursor.execute('''
-                SELECT timestamp, temperature, humidity, light, sound, gas, 
-                       environmental_score, occupancy, happy, surprise, neutral, 
-                       sad, angry, disgust, fear
-                FROM sensor_data
-                WHERE session_id = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            ''', (sensor.db_session_id, limit))
-            
-            rows = cursor.fetchall()
-            
-            for row in rows:
-                history_data.append({
-                    'timestamp': row[0],
-                    'temperature': row[1],
-                    'humidity': row[2],
-                    'light': row[3],
-                    'sound': row[4],
-                    'gas': row[5],
-                    'environmental_score': row[6],
-                    'occupancy': row[7],
-                    'happy': row[8],
-                    'surprise': row[9],
-                    'neutral': row[10],
-                    'sad': row[11],
-                    'angry': row[12],
-                    'disgust': row[13],
-                    'fear': row[14]
-                })
-            
-            # Reverse to show oldest first (for table display)
-            history_data.reverse()
-            
-        except Exception as e:
-            print(f"[IoT] Error reading from database: {e}")
-    
-    # Always add current real-time data if available (even if db has data)
-    # This ensures the table shows live data from connected sensors
     try:
-        data = get_iot_data()
-        # Check if we have any sensor data (temperature or humidity present means data is flowing)
-        has_sensor_data = (data and (
-            data.get('raw_temperature') is not None or 
-            data.get('raw_humidity') is not None or
-            data.get('timestamp') is not None
-        ))
-        
-        if has_sensor_data:
-            # Use current time if timestamp is missing
-            timestamp = data.get('timestamp')
-            if timestamp:
-                timestamp_str = timestamp.isoformat()
-            else:
-                timestamp_str = datetime.now().isoformat()
-            
-            current_row = {
-                'timestamp': timestamp_str,
-                'temperature': round(data.get('raw_temperature') or 0, 1),
-                'humidity': round(data.get('raw_humidity') or 0, 1),
-                'light': round(data.get('raw_light') or 0, 1),
-                'sound': data.get('raw_sound') or 0,
-                'gas': data.get('raw_gas') or 0,
-                'environmental_score': round(data.get('environmental_score') or 0, 1),
-                'occupancy': data.get('occupancy') or 0,
-                'happy': int(data.get('happy') or 0),
-                'surprise': int(data.get('surprise') or 0),
-                'neutral': int(data.get('neutral') or 0),
-                'sad': int(data.get('sad') or 0),
-                'angry': int(data.get('angry') or 0),
-                'disgust': int(data.get('disgust') or 0),
-                'fear': int(data.get('fear') or 0)
-            }
-            
-            # Add current data if not already in the list (avoid duplicates)
-            if not history_data or (history_data and history_data[-1].get('timestamp') != current_row['timestamp']):
-                history_data.append(current_row)
-    except Exception as e:
-        print(f"[IoT] Error getting current data: {e}")
-        import traceback
-        traceback.print_exc()
+        while not iot_sensor.data_queue.empty() and len(history_data) < limit:
+            data = iot_sensor.data_queue.get_nowait()
+            if data and data.get('timestamp'):
+                history_data.append({
+                    'timestamp': data.get('timestamp').isoformat(),
+                    'temperature': round(data.get('raw_temperature', 0), 1),
+                    'humidity': round(data.get('raw_humidity', 0), 1),
+                    'light': round(data.get('raw_light', 0), 1),
+                    'sound': data.get('raw_sound', 0),
+                    'gas': data.get('raw_gas', 0),
+                    'environmental_score': round(data.get('environmental_score', 0), 1),
+                    'occupancy': data.get('occupancy', 0),
+                    'happy': int(data.get('happy', 0)),
+                    'surprise': int(data.get('surprise', 0)),
+                    'neutral': int(data.get('neutral', 0)),
+                    'sad': int(data.get('sad', 0)),
+                    'angry': int(data.get('angry', 0)),
+                    'disgust': int(data.get('disgust', 0)),
+                    'fear': int(data.get('fear', 0))
+                })
+    except:
+        pass
     
-    # Get sensor status for debugging
-    sensor_status = {
-        'connected': sensor.is_connected if sensor else False,
-        'reading': sensor.is_reading if sensor else False,
-        'db_logging': sensor.db_logging_enabled if sensor else False,
-        'has_data': len(history_data) > 0
-    }
+    if not history_data:
+        data = get_iot_data()
+        if data and data.get('timestamp'):
+            history_data.append({
+                'timestamp': data.get('timestamp').isoformat(),
+                'temperature': round(data.get('raw_temperature', 0), 1),
+                'humidity': round(data.get('raw_humidity', 0), 1),
+                'light': round(data.get('raw_light', 0), 1),
+                'sound': data.get('raw_sound', 0),
+                'gas': data.get('raw_gas', 0),
+                'environmental_score': round(data.get('environmental_score', 0), 1),
+                'occupancy': data.get('occupancy', 0),
+                'happy': int(data.get('happy', 0)),
+                'surprise': int(data.get('surprise', 0)),
+                'neutral': int(data.get('neutral', 0)),
+                'sad': int(data.get('sad', 0)),
+                'angry': int(data.get('angry', 0)),
+                'disgust': int(data.get('disgust', 0)),
+                'fear': int(data.get('fear', 0))
+            })
     
     return jsonify({
         'success': True,
         'data': history_data[-limit:],
         'count': len(history_data),
-        'timestamp': datetime.now().isoformat(),
-        'status': sensor_status
+        'timestamp': datetime.now().isoformat()
     }), 200
 
 
@@ -946,59 +734,40 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends - Real-time data (no database required)"""
-    # Get date range from query params
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
+    """Get engagement trends over time - Real data from current session"""
     days = request.args.get('days', default=7, type=int)
     
+    # Get current engagement stats
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
-    high_engaged = current_emotion_stats.get('high_engagement', 0)
-    low_engaged = current_emotion_stats.get('low_engagement', 0)
     
-    # Calculate date range
-    if end_date:
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-    else:
-        end = datetime.now()
+    # Get emotion data
+    emotion_data = current_emotion_stats.get('emotion_percentages', {})
     
-    if start_date:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        days = (end - start).days + 1
-    else:
-        start = end - timedelta(days=days-1)
+    # High Engaged = Happy + Surprise + Neutral
+    high_engaged_pct = (emotion_data.get('Happy', 0) + 
+                        emotion_data.get('Surprise', 0) + 
+                        emotion_data.get('Neutral', 0))
+    
+    # Low Engaged = Fear + Sad + Disgust + Angry
+    low_engaged_pct = (emotion_data.get('Fear', 0) + 
+                       emotion_data.get('Sad', 0) + 
+                       emotion_data.get('Disgust', 0) + 
+                       emotion_data.get('Angry', 0))
     
     trends = {
-        'period': f'{start.strftime("%Y-%m-%d")} to {end.strftime("%Y-%m-%d")} (real-time)',
-        'data': [],
-        'source': 'realtime'
+        'period': f'Last {days} days',
+        'data': [
+            {
+                'date': (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'),
+                'avgEngagement': current_engagement if i == 0 else 0,
+                'highlyEngaged': round(high_engaged_pct) if i == 0 else 0,
+                'disengaged': round(low_engaged_pct) if i == 0 else 0,
+                'studentsPresent': current_students if i == 0 else 0
+            }
+            for i in range(days - 1, -1, -1)
+        ]
     }
-    
-    # Generate data for each day in range
-    for i in range(days):
-        current_date = start + timedelta(days=i)
-        date_str = current_date.strftime('%Y-%m-%d')
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        
-        # Only show data for today (real-time)
-        if date_str == today_str:
-            trends['data'].append({
-                'date': date_str,
-                'highlyEngaged': high_engaged,
-                'disengaged': low_engaged,
-                'studentsPresent': current_students,
-                'dataPoints': 1 if current_students > 0 else 0
-            })
-        else:
-            # Past days - no data (would come from database if enabled)
-            trends['data'].append({
-                'date': date_str,
-                'highlyEngaged': 0,
-                'disengaged': 0,
-                'studentsPresent': 0,
-                'dataPoints': 0
-            })
-    
     return jsonify(trends), 200
 
 
@@ -1082,103 +851,6 @@ def export_analytics():
     }), 200
 
 
-@app.route('/api/analytics/presence-trends', methods=['GET'])
-def get_presence_trends():
-    """Get classroom presence trends - Real-time data (no database required)"""
-    # Get date range from query params
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    days = request.args.get('days', default=7, type=int)
-    
-    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
-    
-    # Calculate date range
-    if end_date:
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-    else:
-        end = datetime.now()
-    
-    if start_date:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        days = (end - start).days + 1
-    else:
-        start = end - timedelta(days=days-1)
-    
-    result = {
-        'period': f'{start.strftime("%Y-%m-%d")} to {end.strftime("%Y-%m-%d")} (real-time)',
-        'data': [],
-        'source': 'realtime'
-    }
-    
-    # Generate data for each day in range
-    for i in range(days):
-        current_date = start + timedelta(days=i)
-        date_str = current_date.strftime('%Y-%m-%d')
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        
-        # Only show data for today (real-time)
-        if date_str == today_str:
-            result['data'].append({
-                'date': date_str,
-                'avgStudents': current_students,
-                'maxStudents': current_students,
-                'minStudents': current_students,
-                'studentsPresent': current_students,
-                'dataPoints': 1 if current_students > 0 else 0
-            })
-        else:
-            # Past days - no data (would come from database if enabled)
-            result['data'].append({
-                'date': date_str,
-                'avgStudents': 0,
-                'maxStudents': 0,
-                'minStudents': 0,
-                'studentsPresent': 0,
-                'dataPoints': 0
-            })
-    
-    return jsonify(result), 200
-
-
-@app.route('/api/analytics/available-dates', methods=['GET'])
-def get_available_dates():
-    """Get list of dates with recorded analytics data"""
-    analytics_db = get_analytics_db() if get_analytics_db else None
-    
-    if analytics_db:
-        dates = analytics_db.get_available_dates()
-        return jsonify({
-            'success': True,
-            'dates': dates,
-            'count': len(dates)
-        }), 200
-    else:
-        # Return only today if database not available
-        return jsonify({
-            'success': True,
-            'dates': [datetime.now().date().isoformat()],
-            'count': 1
-        }), 200
-
-
-@app.route('/api/analytics/stats', methods=['GET'])
-def get_analytics_stats():
-    """Get analytics database statistics"""
-    analytics_db = get_analytics_db() if get_analytics_db else None
-    
-    if analytics_db:
-        stats = analytics_db.get_stats_summary()
-        return jsonify({
-            'success': True,
-            'stats': stats
-        }), 200
-    else:
-        return jsonify({
-            'success': False,
-            'error': 'Analytics database not available'
-        }), 503
-
-
 @app.route('/api/analytics/summary', methods=['GET'])
 def get_analytics_summary():
     """Get analytics summary with real-time data"""
@@ -1222,26 +894,264 @@ def get_analytics_summary():
 # Routes - Alerts
 # =========================
 
+# Alert tracking to prevent spam
+last_alert_time = {}
+ALERT_COOLDOWN = 60  # 1 minute in seconds
+
 @app.route('/api/alerts', methods=['GET'])
 def get_alerts():
-    """Get current alerts and notifications"""
-    alerts = [
-        {
-            'id': 1,
-            'type': 'warning',
-            'title': 'Low Engagement Detected',
-            'message': 'Engagement level dropped below 60%',
-            'timestamp': (datetime.now() - timedelta(minutes=5)).isoformat()
-        },
-        {
-            'id': 2,
-            'type': 'info',
-            'title': 'Temperature Alert',
-            'message': 'Classroom temperature is 27°C',
-            'timestamp': (datetime.now() - timedelta(minutes=15)).isoformat()
-        }
-    ]
+    """Get current alerts and notifications based on real sensor data and predictions"""
+    global last_alert_time
+    
+    alerts = []
+    current_time = time.time()
+    
+    # Check IoT sensor data for alerts
+    if iot_enabled and get_iot_data:
+        iot_data = get_iot_data()
+        if iot_data and iot_data.get('timestamp'):
+            temp = iot_data.get('raw_temperature', 0)
+            humidity = iot_data.get('raw_humidity', 0)
+            gas = iot_data.get('raw_gas', 0)
+            
+            # Temperature alerts (optimal 22-24°C)
+            if temp > 26 and (current_time - last_alert_time.get('high_temp', 0)) > ALERT_COOLDOWN:
+                alerts.append({
+                    'id': 'temp_high',
+                    'type': 'warning',
+                    'title': 'High Temperature',
+                    'message': f'Temperature is {temp:.1f}°C (optimal: 22-24°C)',
+                    'timestamp': datetime.now().isoformat()
+                })
+                last_alert_time['high_temp'] = current_time
+            elif temp < 20 and (current_time - last_alert_time.get('low_temp', 0)) > ALERT_COOLDOWN:
+                alerts.append({
+                    'id': 'temp_low',
+                    'type': 'warning',
+                    'title': 'Low Temperature',
+                    'message': f'Temperature is {temp:.1f}°C (optimal: 22-24°C)',
+                    'timestamp': datetime.now().isoformat()
+                })
+                last_alert_time['low_temp'] = current_time
+            
+            # Humidity alerts (optimal 30-50%)
+            if humidity > 60 and (current_time - last_alert_time.get('high_humidity', 0)) > ALERT_COOLDOWN:
+                alerts.append({
+                    'id': 'humidity_high',
+                    'type': 'warning',
+                    'title': 'High Humidity',
+                    'message': f'Humidity is {humidity:.1f}% (optimal: 30-50%)',
+                    'timestamp': datetime.now().isoformat()
+                })
+                last_alert_time['high_humidity'] = current_time
+            elif humidity < 25 and (current_time - last_alert_time.get('low_humidity', 0)) > ALERT_COOLDOWN:
+                alerts.append({
+                    'id': 'humidity_low',
+                    'type': 'warning',
+                    'title': 'Low Humidity',
+                    'message': f'Humidity is {humidity:.1f}% (optimal: 30-50%)',
+                    'timestamp': datetime.now().isoformat()
+                })
+                last_alert_time['low_humidity'] = current_time
+            
+            # Air quality alerts (gas sensor - lower is better)
+            if gas > 800 and (current_time - last_alert_time.get('poor_air', 0)) > ALERT_COOLDOWN:
+                alerts.append({
+                    'id': 'air_quality',
+                    'type': 'warning',
+                    'title': 'Poor Air Quality',
+                    'message': f'CO2 levels elevated ({gas} ppm). Consider ventilation.',
+                    'timestamp': datetime.now().isoformat()
+                })
+                last_alert_time['poor_air'] = current_time
+    
+    # Check engagement for alerts
+    if classroom_data['current_stats'].get('avgEngagement', 0) < 50:
+        if (current_time - last_alert_time.get('low_engagement', 0)) > ALERT_COOLDOWN:
+            alerts.append({
+                'id': 'engagement_low',
+                'type': 'info',
+                'title': 'Low Engagement Detected',
+                'message': f'Class engagement is {classroom_data["current_stats"]["avgEngagement"]}%',
+                'timestamp': datetime.now().isoformat()
+            })
+            last_alert_time['low_engagement'] = current_time
+    
     return jsonify(alerts), 200
+
+
+# =========================
+# Camera System API
+# =========================
+
+# Gradient Boosting Model - Global variables
+gb_model = None
+gb_scaler = None
+gb_feature_columns = None
+
+def load_gradient_boosting_model():
+    """Load gradient boosting forecasting model and related files"""
+    global gb_model, gb_scaler, gb_feature_columns
+    
+    try:
+        import pickle
+        model_dir = 'static/model'
+        
+        # Load gradient boosting model
+        with open(f'{model_dir}/gradient_boosting_forecasting_model.pkl', 'rb') as f:
+            gb_model = pickle.load(f)
+        
+        # Load scaler
+        with open(f'{model_dir}/gb_scaler.pkl', 'rb') as f:
+            gb_scaler = pickle.load(f)
+        
+        # Load feature columns
+        with open(f'{model_dir}/feature_columns.pkl', 'rb') as f:
+            gb_feature_columns = pickle.load(f)
+        
+        print("✓ Gradient Boosting forecasting model loaded successfully")
+        return True
+    except Exception as e:
+        print(f"⚠ Warning: Could not load Gradient Boosting model: {e}")
+        return False
+
+# Load model at startup
+gb_model_loaded = load_gradient_boosting_model()
+
+@app.route('/api/forecast/gradient-boosting', methods=['POST'])
+def gradient_boosting_forecast():
+    """
+    Gradient Boosting forecasting endpoint
+    Expects current sensor readings and returns next 10-minute forecast
+    """
+    if not gb_model_loaded or gb_model is None:
+        return jsonify({
+            'success': False,
+            'error': 'Gradient Boosting model not available'
+        }), 503
+    
+    try:
+        import numpy as np
+        import pandas as pd
+        
+        # Get current IoT sensor data
+        if not iot_enabled or not get_iot_data:
+            return jsonify({
+                'success': False,
+                'error': 'IoT sensors not available'
+            }), 503
+        
+        iot_data = get_iot_data()
+        if not iot_data or not iot_data.get('timestamp'):
+            return jsonify({
+                'success': False,
+                'error': 'No sensor data available'
+            }), 503
+        
+        # Prepare input features for prediction
+        current_features = {
+            'temperature': iot_data.get('raw_temperature', 24.0),
+            'humidity': iot_data.get('raw_humidity', 50.0),
+            'gas': iot_data.get('raw_gas', 400),
+            'light': iot_data.get('raw_light', 300),
+            'sound': iot_data.get('raw_sound', 50),
+            'occupancy': classroom_data['current_stats'].get('studentsDetected', 0),
+            'hour': datetime.now().hour,
+            'minute': datetime.now().minute
+        }
+        
+        # Add emotion data if camera is active
+        emotion_data = current_emotion_stats.get('emotions', {})
+        current_features['happy'] = emotion_data.get('Happy', 0)
+        current_features['surprise'] = emotion_data.get('Surprise', 0)
+        current_features['neutral'] = emotion_data.get('Neutral', 0)
+        current_features['sad'] = emotion_data.get('Sad', 0)
+        current_features['angry'] = emotion_data.get('Angry', 0)
+        current_features['disgust'] = emotion_data.get('Disgust', 0)
+        current_features['fear'] = emotion_data.get('Fear', 0)
+        
+        # Create DataFrame with correct column order
+        input_df = pd.DataFrame([current_features])
+        
+        # Ensure columns match training data
+        if gb_feature_columns:
+            # Reorder columns to match training data
+            for col in gb_feature_columns:
+                if col not in input_df.columns:
+                    input_df[col] = 0
+            input_df = input_df[gb_feature_columns]
+        
+        # Scale input features
+        input_scaled = gb_scaler.transform(input_df)
+        
+        # Make prediction (next timestep values)
+        prediction_scaled = gb_model.predict(input_scaled)
+        
+        # Inverse transform to get actual values
+        # Assuming model predicts [temperature, humidity, gas, light, sound]
+        predicted_values = prediction_scaled[0]
+        
+        # Create forecast result
+        forecast = {
+            'current': {
+                'temperature': round(current_features['temperature'], 1),
+                'humidity': round(current_features['humidity'], 1),
+                'gas': round(current_features['gas'], 0),
+                'light': round(current_features['light'], 0),
+                'sound': round(current_features['sound'], 0),
+                'timestamp': iot_data.get('timestamp').isoformat()
+            },
+            'predicted': {
+                'temperature': round(float(predicted_values[0]), 1),
+                'humidity': round(float(predicted_values[1]), 1),
+                'gas': round(float(predicted_values[2]), 0),
+                'light': round(float(predicted_values[3]), 0),
+                'sound': round(float(predicted_values[4]), 0),
+                'timestamp': (datetime.now() + timedelta(minutes=10)).isoformat()
+            },
+            'changes': {
+                'temperature': round(float(predicted_values[0]) - current_features['temperature'], 2),
+                'humidity': round(float(predicted_values[1]) - current_features['humidity'], 2),
+                'gas': round(float(predicted_values[2]) - current_features['gas'], 0),
+                'light': round(float(predicted_values[3]) - current_features['light'], 0),
+                'sound': round(float(predicted_values[4]) - current_features['sound'], 0)
+            }
+        }
+        
+        # Add recommendations based on predictions
+        recommendations = []
+        if forecast['predicted']['temperature'] > 26:
+            recommendations.append('Temperature predicted to rise - consider cooling')
+        elif forecast['predicted']['temperature'] < 20:
+            recommendations.append('Temperature predicted to drop - consider heating')
+        
+        if forecast['predicted']['humidity'] > 60:
+            recommendations.append('Humidity predicted to increase - improve ventilation')
+        elif forecast['predicted']['humidity'] < 30:
+            recommendations.append('Humidity predicted to decrease - consider humidifier')
+        
+        if forecast['predicted']['gas'] > 800:
+            recommendations.append('CO2 levels predicted to rise - increase air circulation')
+        
+        if forecast['predicted']['light'] < 150:
+            recommendations.append('Light levels predicted to drop - check lighting')
+        
+        forecast['recommendations'] = recommendations if recommendations else ['All conditions predicted to remain optimal']
+        
+        return jsonify({
+            'success': True,
+            'forecast': forecast,
+            'model': 'Gradient Boosting',
+            'generated_at': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Prediction error: {str(e)}'
+        }), 500
 
 
 # =========================
@@ -1252,9 +1162,7 @@ def get_alerts():
 try:
     from camera_system import CameraDetector, CameraStream
     from camera_system.emotion_detector import EmotionDetector
-    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts, get_iot_sensor
-    from camera_system.ml_models import get_environmental_predictor
-    from camera_system.analytics_db import get_analytics_db
+    from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
     CAMERA_SYSTEM_AVAILABLE = True
     print("✓ Camera system loaded successfully")
 except ImportError as e:
@@ -1262,805 +1170,11 @@ except ImportError as e:
     CAMERA_SYSTEM_AVAILABLE = False
     CameraDetector = None
     CameraStream = None
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     EmotionDetector = None
     initialize_iot = None
     get_iot_data = None
     get_iot_status = None
     get_iot_alerts = None
-    get_environmental_predictor = None
-    get_analytics_db = None
-    get_iot_sensor = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
@@ -2068,16 +1182,11 @@ emotion_detector = None
 iot_enabled = False
 cv_data_sync_thread = None
 cv_data_sync_running = False
-environmental_predictor = None  # NEW: Environmental prediction model
 
 current_emotion_stats = {
     'total_faces': 0,
     'emotions': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
     'emotion_percentages': {'Happy': 0, 'Surprise': 0, 'Neutral': 0, 'Sad': 0, 'Angry': 0, 'Disgust': 0, 'Fear': 0},
-    'high_engagement': 0,  # NEW: High engaged count
-    'low_engagement': 0,   # NEW: Low engaged count
-    'high_engagement_pct': 0,  # NEW: High engaged percentage
-    'low_engagement_pct': 0,   # NEW: Low engaged percentage
     'engagement': 0
 }
 
@@ -2087,61 +1196,24 @@ last_emotion_snapshot = time.time()
 
 def cv_data_sync_worker():
     """Background worker to sync CV data to IoT sensor every 10 seconds"""
-    global cv_data_sync_running, current_emotion_stats, classroom_data, environmental_predictor
+    global cv_data_sync_running, current_emotion_stats, classroom_data
+    from camera_system.iot_sensor import iot_sensor
     
     print("[CV Sync] Background worker started - syncing every 10 seconds")
     
-    # Get analytics database
-    analytics_db = get_analytics_db() if get_analytics_db else None
-    
     while cv_data_sync_running:
         try:
-            # Get IoT sensor instance
-            sensor = get_iot_sensor() if get_iot_sensor else None
-            
             # Only sync if IoT logging is enabled
-            if iot_enabled and sensor and sensor.db_logging_enabled:
+            if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
                 # Get current CV data
                 occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
                 # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
                 emotion_counts = current_emotion_stats.get('emotions', {})
                 
-                # Get high/low engagement counts
-                high_engagement = current_emotion_stats.get('high_engagement', 0)
-                low_engagement = current_emotion_stats.get('low_engagement', 0)
-                
                 # Update IoT sensor with CV data (counts, not percentages)
-                sensor.update_cv_data(occupancy, emotion_counts)
+                iot_sensor.update_cv_data(occupancy, emotion_counts)
                 
-                # Log to analytics database
-                if analytics_db:
-                    analytics_db.log_engagement(
-                        high_engagement=high_engagement,
-                        low_engagement=low_engagement,
-                        students_detected=occupancy,
-                        emotion_counts=emotion_counts
-                    )
-                    analytics_db.log_presence(students_count=occupancy)
-                
-                # Update environmental predictor with current data
-                if environmental_predictor and environmental_predictor.is_loaded:
-                    iot_data = get_iot_data()
-                    if iot_data and iot_data.get('timestamp'):
-                        # Prepare data for predictor
-                        predictor_data = {
-                            'temperature': iot_data.get('raw_temperature', 24.0),
-                            'humidity': iot_data.get('raw_humidity', 55.0),
-                            'gas': iot_data.get('raw_gas', 500),
-                            'light': iot_data.get('raw_light', 400),
-                            'sound': iot_data.get('raw_sound', 40),
-                            'occupancy': occupancy,
-                            'high_engagement': high_engagement,
-                            'low_engagement': low_engagement,
-                            'timestamp': iot_data.get('timestamp')
-                        }
-                        environmental_predictor.add_reading(predictor_data)
-                
-                print(f"[CV Sync] Updated IoT & Analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
+                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, emotion_counts={emotion_counts}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")
@@ -2181,17 +1253,6 @@ if CAMERA_SYSTEM_AVAILABLE and initialize_iot:
         print("ℹ IoT sensors not connected (system will work without them)")
         print("ℹ Make sure Arduino IDE Serial Monitor is CLOSED")
         print("ℹ If Arduino is on different port, edit app.py line 937")
-    else:
-        # Initialize environmental predictor when IoT is available
-        if get_environmental_predictor:
-            try:
-                environmental_predictor = get_environmental_predictor()
-                if environmental_predictor.is_loaded:
-                    print("✓ Environmental prediction pipeline initialized")
-                else:
-                    print("⚠ Warning: Environmental prediction models not fully loaded")
-            except Exception as e:
-                print(f"⚠ Warning: Could not initialize environmental predictor: {e}")
 
 @app.route('/api/camera/detect', methods=['GET'])
 def detect_cameras():
@@ -2382,10 +1443,6 @@ def generate_frames():
     """Generator function to stream video frames with emotion detection"""
     global active_camera_stream, emotion_detector, current_emotion_stats
     
-    # Variables for analytics logging (every 10 seconds)
-    last_analytics_log = time.time()
-    analytics_log_interval = 10  # Log to analytics DB every 10 seconds
-    
     while True:
         # Check if camera is still active
         if not active_camera_stream or not active_camera_stream.is_running:
@@ -2401,7 +1458,7 @@ def generate_frames():
                     try:
                         annotated_frame, emotion_stats = emotion_detector.process_frame(frame)
                         
-                        # Update global emotion stats (now includes high/low engagement)
+                        # Update global emotion stats
                         current_emotion_stats = emotion_stats
                         current_emotion_stats['engagement'] = emotion_detector.get_engagement_from_emotions()
                         
@@ -2417,10 +1474,6 @@ def generate_frames():
                                 'timestamp': datetime.now().isoformat(),
                                 'total_faces': emotion_stats['total_faces'],
                                 'emotion_percentages': emotion_stats['emotion_percentages'].copy(),
-                                'high_engagement': emotion_stats.get('high_engagement', 0),
-                                'low_engagement': emotion_stats.get('low_engagement', 0),
-                                'high_engagement_pct': emotion_stats.get('high_engagement_pct', 0),
-                                'low_engagement_pct': emotion_stats.get('low_engagement_pct', 0),
                                 'engagement': current_emotion_stats['engagement']
                             }
                             emotion_history.append(emotion_snapshot)
@@ -2429,31 +1482,6 @@ def generate_frames():
                             # Memory usage: ~1KB per snapshot = ~14.4MB for 4 hours
                             
                             last_emotion_snapshot = current_time
-                        
-                        # Log to analytics database every 10 seconds (for charts)
-                        if current_time - last_analytics_log >= analytics_log_interval:
-                            try:
-                                analytics_db = get_analytics_db() if get_analytics_db else None
-                                if analytics_db:
-                                    # Log engagement data
-                                    high_engagement = emotion_stats.get('high_engagement', 0)
-                                    low_engagement = emotion_stats.get('low_engagement', 0)
-                                    students_detected = emotion_stats['total_faces']
-                                    emotion_counts = emotion_stats.get('emotions', {})
-                                    
-                                    analytics_db.log_engagement(
-                                        high_engagement=high_engagement,
-                                        low_engagement=low_engagement,
-                                        students_detected=students_detected,
-                                        emotion_counts=emotion_counts
-                                    )
-                                    
-                                    # Log presence data (for classroom presence chart)
-                                    analytics_db.log_presence(students_count=students_detected)
-                                    
-                                last_analytics_log = current_time
-                            except Exception as e:
-                                print(f"Error logging analytics: {e}")
                         
                         frame = annotated_frame
                     except Exception as e:
@@ -2490,22 +1518,12 @@ def video_stream():
 
 @app.route('/api/emotions', methods=['GET'])
 def get_emotions():
-    """Get current emotion detection statistics with high/low engagement grouping"""
+    """Get current emotion detection statistics"""
     global current_emotion_stats
     
     return jsonify({
         'success': True,
-        'data': {
-            **current_emotion_stats,
-            # Add explicit engagement summary
-            'engagement_summary': {
-                'high_engaged_count': current_emotion_stats.get('high_engagement', 0),
-                'low_engaged_count': current_emotion_stats.get('low_engagement', 0),
-                'high_engaged_pct': current_emotion_stats.get('high_engagement_pct', 0),
-                'low_engaged_pct': current_emotion_stats.get('low_engagement_pct', 0),
-                'total_faces': current_emotion_stats.get('total_faces', 0)
-            }
-        }
+        'data': current_emotion_stats
     }), 200
 
 
@@ -2595,15 +1613,6 @@ if __name__ == '__main__':
     print("=" * 50)
     print("🎓 Smart Classroom Backend Server")
     print("=" * 50)
-    
-    # Initialize analytics database on startup
-    if get_analytics_db:
-        try:
-            analytics_db = get_analytics_db()
-            print("✓ Analytics database initialized")
-        except Exception as e:
-            print(f"⚠ Warning: Analytics database initialization failed: {e}")
-    
     print("Server running on: http://localhost:5000")
     print("API endpoints available at: http://localhost:5000/api/")
     print("=" * 50)

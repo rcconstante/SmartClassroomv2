@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +13,6 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/style.css">
 </head>
-
 <body>
     <div class="app-container">
         <!-- Sidebar -->
@@ -22,8 +20,7 @@
             <div class="sidebar-header">
                 <div class="brand">
                     <div class="brand-icon">
-                        <img src="/static/images/dlsudlogo.png" alt="DLSUD Logo"
-                            style="width: 100%; height: 100%; object-fit: contain;">
+                        <img src="/static/images/dlsudlogo.png" alt="DLSUD Logo" style="width: 100%; height: 100%; object-fit: contain;">
                     </div>
                     <span class="brand-text">DLSUD Smart</span>
                 </div>
@@ -82,29 +79,11 @@
                     <p class="page-subtitle">Welcome back to your smart classroom</p>
                 </div>
                 <div class="header-right">
-                    <button class="icon-button" id="notificationBell" title="Notifications">
-                        <i data-lucide="bell"></i>
-                        <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
-                    </button>
                     <button class="icon-button" id="darkModeToggle" title="Toggle Dark Mode">
                         <i data-lucide="moon"></i>
                     </button>
                 </div>
             </header>
-
-            <!-- Notification Panel -->
-            <div id="notificationPanel" class="notification-panel" style="display: none;">
-                <div class="notification-panel-header">
-                    <h3>Notifications</h3>
-                    <button id="clearAllNotifications" class="btn-text">Clear All</button>
-                </div>
-                <div id="notificationPanelBody" class="notification-panel-body">
-                    <div class="notification-empty">
-                        <i data-lucide="bell-off" style="width: 48px; height: 48px; opacity: 0.3;"></i>
-                        <p>No notifications yet</p>
-                    </div>
-                </div>
-            </div>
 
             <!-- Dashboard Content -->
             <div id="mainContent" class="content-body">
@@ -118,10 +97,9 @@
 
     <!-- JavaScript -->
     <script src="/js/auth.js"></script>
+    <script src="/js/notifications.js"></script>
     <script src="/js/dashboard.js"></script>
     <script src="/js/settings.js"></script>
     <script src="/js/app.js"></script>
-    <script src="/js/analytics-patch.js"></script>
 </body>
-
 </html>

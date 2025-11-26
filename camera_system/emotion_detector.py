@@ -11,12 +11,6 @@ import os
 # FER-2013 emotion labels (7 classes from computer vision model)
 EMOTION_LABELS = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear']
 
-# Engagement groupings based on trained model
-# High Engagement = neutral + happy + surprise
-# Low Engagement = sad + angry + fear + disgust
-HIGH_ENGAGEMENT_EMOTIONS = ['Neutral', 'Happy', 'Surprise']
-LOW_ENGAGEMENT_EMOTIONS = ['Sad', 'Angry', 'Fear', 'Disgust']
-
 class EmotionDetector:
     """Detects student emotions using YOLO11 face detection + Keras/TensorFlow CNN emotion recognition"""
     
@@ -172,7 +166,6 @@ class EmotionDetector:
     def process_frame(self, frame) -> Tuple[np.ndarray, Dict]:
         """
         Process frame to detect faces and emotions
-        Groups emotions into high_engagement and low_engagement
         
         Args:
             frame: Input video frame
@@ -200,19 +193,12 @@ class EmotionDetector:
             # Update emotion count
             self.emotion_counts[emotion] += 1
             
-            # Determine engagement label for display
-            if emotion in HIGH_ENGAGEMENT_EMOTIONS:
-                display_label = "High Engaged"
-                color = (0, 255, 0)  # Green for high engagement
-            else:
-                display_label = "Low Engaged"
-                color = (0, 0, 255)  # Red for low engagement
-            
             # Draw rectangle around face
+            color = self._get_emotion_color(emotion)
             cv2.rectangle(annotated_frame, (x, y), (x+w, y+h), color, 2)
             
-            # Draw engagement label (instead of raw emotion)
-            label = f"{display_label} ({confidence*100:.1f}%)"
+            # Draw emotion label
+            label = f"{emotion} ({confidence*100:.1f}%)"
             label_y = y - 10 if y - 10 > 10 else y + h + 20
             
             # Draw background for text
@@ -226,19 +212,11 @@ class EmotionDetector:
             cv2.putText(annotated_frame, label, (x, label_y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
-        # Calculate high/low engagement counts
-        high_engaged = sum(self.emotion_counts[e] for e in HIGH_ENGAGEMENT_EMOTIONS)
-        low_engaged = sum(self.emotion_counts[e] for e in LOW_ENGAGEMENT_EMOTIONS)
-        
-        # Calculate emotion statistics (now includes engagement grouping)
+        # Calculate emotion statistics
         emotion_stats = {
             'total_faces': num_faces,
-            'emotions': self.emotion_counts,  # Original 7 emotions for tracking
-            'emotion_percentages': self._calculate_percentages(num_faces),
-            'high_engagement': high_engaged,  # NEW: Count of high engaged students
-            'low_engagement': low_engaged,    # NEW: Count of low engaged students
-            'high_engagement_pct': (high_engaged / num_faces * 100) if num_faces > 0 else 0,
-            'low_engagement_pct': (low_engaged / num_faces * 100) if num_faces > 0 else 0
+            'emotions': self.emotion_counts,
+            'emotion_percentages': self._calculate_percentages(num_faces)
         }
         
         return annotated_frame, emotion_stats
@@ -268,18 +246,31 @@ class EmotionDetector:
     
     def get_engagement_from_emotions(self) -> float:
         """
-        Calculate engagement percentage based on high vs low engagement counts
-        Engagement = (high_engagement / total_faces) * 100
+        Calculate engagement score based on FER-2013 emotions
+        Positive emotions = higher engagement, negative = lower
         """
-        total_faces = sum(self.emotion_counts.values())
-        
-        if total_faces == 0:
+        if sum(self.emotion_counts.values()) == 0:
             return 0.0
         
-        high_engaged = sum(self.emotion_counts[e] for e in HIGH_ENGAGEMENT_EMOTIONS)
+        # Weight FER-2013 emotions for engagement score
+        engagement_weights = {
+            'Happy': 1.0,      # Highly engaged
+            'Surprise': 0.8,   # Engaged, attentive
+            'Neutral': 0.6,    # Moderate engagement
+            'Sad': 0.3,        # Low engagement
+            'Angry': 0.2,      # Frustrated/disengaged
+            'Disgust': 0.2,    # Disengaged
+            'Fear': 0.4        # Confused/uncertain
+        }
         
-        engagement_pct = (high_engaged / total_faces) * 100
-        return round(engagement_pct, 2)
+        total_faces = sum(self.emotion_counts.values())
+        weighted_sum = sum(
+            self.emotion_counts[emotion] * weight 
+            for emotion, weight in engagement_weights.items()
+        )
+        
+        engagement = (weighted_sum / total_faces) * 100
+        return round(engagement, 2)
     
     def get_occupancy_count(self, frame) -> int:
         """

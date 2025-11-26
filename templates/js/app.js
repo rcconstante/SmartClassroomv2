@@ -779,8 +779,8 @@ function loadAnalytics() {
             <div class="card card-full">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Student Engagement</h3>
-                        <p class="card-subtitle">Real-time high vs low engagement tracking from camera</p>
+                        <h3 class="card-title">Engagement Trends</h3>
+                        <p class="card-subtitle">High vs Low engagement levels over selected period</p>
                     </div>
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -793,7 +793,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Classroom Presence</h3>
-                        <p class="card-subtitle">Real-time student detection from camera</p>
+                        <p class="card-subtitle">Students detected over time</p>
                     </div>
                 </div>
                 <div class="chart-container">
@@ -846,6 +846,7 @@ function loadAnalytics() {
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Angry</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Disgust</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Fear</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Env Score</th>
                             </tr>
                         </thead>
                         <tbody id="iotTableBody">
@@ -877,9 +878,14 @@ async function initAnalytics() {
         // Update stat cards with real data
         updateAnalyticsStats(summary);
         
-        // Initialize charts with empty data - they will be populated by the real-time patch
-        initAnalyticsEngagementChart([]);
-        initAnalyticsPresenceChart([]);
+        // Fetch engagement trends
+        const days = parseInt(document.getElementById('analyticsDateRange')?.value || 30);
+        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
+        const trendsData = await trendsResponse.json();
+        
+        // Initialize all charts with real data
+        initAnalyticsEngagementChart(trendsData.data);
+        initAnalyticsPresenceChart(trendsData.data);
         
         // Use emotion history averages instead of real-time data
         if (emotionHistory.success && emotionHistory.average_emotions) {
@@ -902,15 +908,17 @@ async function initAnalytics() {
             console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
-        // Start real-time analytics chart updates every 5 seconds
-        if (!window.analyticsRefreshInterval) {
-            window.analyticsRefreshInterval = setInterval(refreshAnalyticsCharts, 5000);
-            console.log('✓ Started analytics chart polling (5 second interval)');
+        const dateRangeSelect = document.getElementById('analyticsDateRange');
+        if (dateRangeSelect) {
+            dateRangeSelect.addEventListener('change', async (e) => {
+                const newDays = parseInt(e.target.value);
+                await refreshAnalytics(newDays);
+            });
         }
         
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => exportAnalyticsCSV(7, true));
+            exportBtn.addEventListener('click', () => exportAnalyticsCSV(days, true));
         }
         
         // IoT Database Logging Controls
@@ -993,13 +1001,7 @@ function updateAnalyticsStats(summary) {
     }
 }
 
-// Refresh analytics charts with selected date range
-async function refreshAnalyticsCharts() {
-    // This function is now overridden by analytics-patch.js to use real-time CV data
-    // The patch will handle updating the charts with live camera feed data
-    console.log('refreshAnalyticsCharts called - will be handled by analytics-patch.js');
-}
-
+// Refresh analytics with new date range
 async function refreshAnalytics(days) {
     try {
         const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
@@ -1143,42 +1145,31 @@ function initAnalyticsEngagementChart(data) {
     const ctx = document.getElementById('analyticsEngagementChart');
     if (!ctx) return;
     
-    // Use real-time engagement data from database
-    // Track high engagement vs low engagement over time
-    const hasData = data.some(d => (d.highlyEngaged > 0 || d.disengaged > 0));
+    // Check if we have real data
+    const hasData = data.some(d => d.avgEngagement > 0);
 
-    window.analyticsEngagementChart = new Chart(ctx, {
+    new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
             datasets: [
                 {
-                    label: 'High Engagement',
+                    label: 'High Engaged (Happy, Surprise, Neutral)',
                     data: data.map(d => d.highlyEngaged || 0),
                     borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#10b981',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2
+                    borderWidth: 3
                 },
                 {
-                    label: 'Low Engagement',
+                    label: 'Low Engaged (Fear, Sad, Disgust, Angry)',
                     data: data.map(d => d.disengaged || 0),
                     borderColor: '#ef4444',
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     tension: 0.4,
                     fill: true,
-                    borderWidth: 3,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#ef4444',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2
+                    borderWidth: 3
                 }
             ]
         },
@@ -1190,29 +1181,16 @@ function initAnalyticsEngagementChart(data) {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        padding: 15,
-                        font: {
-                            size: 13,
-                            weight: 500
-                        }
+                        padding: 15
                     }
                 },
                 tooltip: {
                     enabled: hasData,
                     mode: 'index',
                     intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    padding: 12,
-                    borderRadius: 8,
                     callbacks: {
                         label: function(context) {
-                            if (!hasData) return 'No data';
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += context.parsed.y + ' students';
-                            return label;
+                            return hasData ? `${context.dataset.label}: ${context.parsed.y}%` : 'No data';
                         }
                     }
                 }
@@ -1220,20 +1198,13 @@ function initAnalyticsEngagementChart(data) {
             scales: {
                 y: {
                     beginAtZero: true,
+                    max: 100,
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)'
                     },
                     ticks: {
                         callback: function(value) {
-                            return hasData ? value : '';
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Number of Students',
-                        font: {
-                            size: 12,
-                            weight: 500
+                            return hasData ? value + '%' : '';
                         }
                     }
                 },
@@ -1252,17 +1223,18 @@ function initAnalyticsPresenceChart(data) {
     if (!ctx) return;
     
     // Extract students detected data from the API response
-    const hasStudentData = data && data.some(d => (d.studentsPresent !== undefined && d.studentsPresent > 0) || (d.avgStudents !== undefined && d.avgStudents > 0));
+    const hasStudentData = data && data.some(d => d.studentsPresent !== undefined && d.studentsPresent > 0);
+    const currentStudents = hasStudentData ? data[data.length - 1].studentsPresent : 0;
     
-    // Build presence data array - use studentsPresent or avgStudents from API data
+    // Build presence data array - use studentsPresent from API data
     const studentData = data.map((d) => ({
         date: d.date,
-        students: d.studentsPresent || d.avgStudents || 0
+        students: d.studentsPresent || 0
     }));
     
     const hasData = studentData.some(d => d.students > 0);
 
-    window.analyticsPresenceChart = new Chart(ctx, {
+    new Chart(ctx, {
         type: 'line',
         data: {
             labels: studentData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
@@ -1398,96 +1370,20 @@ function initAnalyticsEmotionChart(emotionData = {}) {
     });
 }
 
-// Update engagement chart with new data
-function updateAnalyticsEngagementChart(data) {
-    if (!window.analyticsEngagementChart) return;
-    
-    // Filter to only show dates with actual data points
-    const filteredData = data.filter(d => d.dataPoints > 0);
-    const hasData = filteredData.length > 0;
-    
-    if (hasData) {
-        // Update labels and data with filtered data
-        window.analyticsEngagementChart.data.labels = filteredData.map(d => 
-            new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        );
-        
-        window.analyticsEngagementChart.data.datasets[0].data = filteredData.map(d => d.highlyEngaged || 0);
-        window.analyticsEngagementChart.data.datasets[1].data = filteredData.map(d => d.disengaged || 0);
-    } else {
-        // Show "No data" state
-        window.analyticsEngagementChart.data.labels = ['No Data'];
-        window.analyticsEngagementChart.data.datasets[0].data = [0];
-        window.analyticsEngagementChart.data.datasets[1].data = [0];
-    }
-    
-    // Update tooltip enabled state
-    window.analyticsEngagementChart.options.plugins.tooltip.enabled = hasData;
-    
-    window.analyticsEngagementChart.update();
-}
-
-// Update presence chart with new data
-function updateAnalyticsPresenceChart(data) {
-    if (!window.analyticsPresenceChart) return;
-    
-    const studentData = data.map((d) => ({
-        date: d.date,
-        students: d.studentsPresent || d.avgStudents || 0
-    }));
-    
-    const hasData = studentData.some(d => d.students > 0);
-    
-    // Update labels and data
-    window.analyticsPresenceChart.data.labels = studentData.map(d => 
-        new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    );
-    
-    window.analyticsPresenceChart.data.datasets[0].data = studentData.map(d => d.students);
-    
-    // Update tooltip enabled state
-    window.analyticsPresenceChart.options.plugins.tooltip.enabled = hasData;
-    
-    window.analyticsPresenceChart.update();
-}
-
 async function populateIoTTable() {
     const tbody = document.getElementById('iotTableBody');
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/iot/history');
+        const response = await fetch('/api/iot/history');  // No limit - get all records
         const result = await response.json();
         
-        // Check if IoT sensors are not available at all
-        if (!result.success) {
+        if (!result.success || !result.data || result.data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                    <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
-                        <p>${result.error || 'IoT sensors not available'}</p>
-                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Make sure Arduino is connected and Serial Monitor is closed</p>
-                    </td>
-                </tr>
-            `;
-            lucide.createIcons();
-            return;
-        }
-        
-        // Check if no data yet (sensors connected but no readings)
-        if (!result.data || result.data.length === 0) {
-            // Get status info for debugging
-            const status = result.status || {};
-            const statusInfo = status.connected 
-                ? (status.reading ? 'Sensor connected and reading' : 'Sensor connected but not reading')
-                : 'Sensor not connected';
-            
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
-                        <i data-lucide="loader" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; animation: spin 2s linear infinite;"></i>
-                        <p>Waiting for sensor data...</p>
-                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${statusInfo} - Data will appear once sensors transmit</p>
+                        <p>No IoT sensor data available. Connect Arduino to start logging.</p>
                     </td>
                 </tr>
             `;
@@ -1500,6 +1396,13 @@ async function populateIoTTable() {
             const timeStr = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const dateStr = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             
+            const getScoreColor = (score) => {
+                if (score >= 80) return '#10b981';
+                if (score >= 60) return '#f59e0b';
+                return '#ef4444';
+            };
+            
+            const envScore = row.environmental_score || 0;
             const occupancy = row.occupancy !== undefined ? row.occupancy : 'N/A';
             // Display emotion COUNTS (not percentages) - each is an integer representing number of faces
             const happy = row.happy !== undefined ? row.happy : 'N/A';
@@ -1526,6 +1429,9 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #ef4444;">${angry}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f97316;">${disgust}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f59e0b;">${fear}</td>
+                    <td style="padding: 10px; text-align: center;">
+                        <span class="badge" style="background: ${getScoreColor(envScore)};">${envScore.toFixed(1)}</span>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -1535,7 +1441,7 @@ async function populateIoTTable() {
         console.error('Error fetching IoT data:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                <td colspan="15" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                     <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                     <p>Failed to load IoT sensor data</p>
                 </td>
@@ -1784,48 +1690,6 @@ function searchHelpContent(query) {
 }
 
 // IoT Database Logging Functions
-async function reconnectIoT() {
-    const btn = document.getElementById('reconnectIoTBtn');
-    const originalHTML = btn.innerHTML;
-    
-    try {
-        btn.disabled = true;
-        btn.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Reconnecting...';
-        lucide.createIcons();
-        
-        const response = await fetch('/api/iot/reconnect', { method: 'POST' });
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification(
-                'IoT Connected',
-                result.message,
-                'success'
-            );
-            
-            // Refresh IoT data immediately
-            await updateIoTData();
-        } else {
-            showNotification(
-                'Connection Failed',
-                result.message,
-                'error'
-            );
-        }
-    } catch (error) {
-        console.error('IoT reconnection error:', error);
-        showNotification(
-            'Connection Error',
-            'Failed to reconnect to IoT sensors. Check console for details.',
-            'error'
-        );
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-        lucide.createIcons();
-    }
-}
-
 async function toggleIoTLogging() {
     const btn = document.getElementById('toggleIoTLoggingBtn');
     const isLogging = btn.getAttribute('data-logging') === 'true';
