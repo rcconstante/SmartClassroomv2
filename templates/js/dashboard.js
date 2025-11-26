@@ -12,6 +12,25 @@ let dashboardData = {
     tired: 0
 };
 
+// Dashboard interval timers (to prevent duplicates)
+let dashboardIntervals = {
+    stats: null,
+    iot: null,
+    emotion: null,
+    predictions: null,
+    environment: null
+};
+
+// Clear all dashboard intervals
+function clearDashboardIntervals() {
+    Object.keys(dashboardIntervals).forEach(key => {
+        if (dashboardIntervals[key]) {
+            clearInterval(dashboardIntervals[key]);
+            dashboardIntervals[key] = null;
+        }
+    });
+}
+
 // Fetch and update dashboard stats
 async function fetchDashboardStats() {
     try {
@@ -341,18 +360,21 @@ function loadDashboard() {
     // Initialize fullscreen button
     initFullscreenButton();
 
+    // Clear any existing intervals to prevent duplicates
+    clearDashboardIntervals();
+
     // Fetch initial dashboard data
     fetchDashboardStats();
     fetchIoTEnvironmentData();
     
     // Update stats every 5 seconds for real-time sync
-    setInterval(fetchDashboardStats, 5000);
+    dashboardIntervals.stats = setInterval(fetchDashboardStats, 5000);
     
     // Update IoT environment data every 10 seconds
-    setInterval(fetchIoTEnvironmentData, 10000);
+    dashboardIntervals.iot = setInterval(fetchIoTEnvironmentData, 10000);
     
     // Update emotion chart data every 2 seconds when camera is active
-    setInterval(() => {
+    dashboardIntervals.emotion = setInterval(() => {
         const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
         if (isCameraActive) {
             updateEmotionChartData();
@@ -362,10 +384,10 @@ function loadDashboard() {
     // Fetch environmental predictions every 60 seconds (for 1-minute ahead forecasting)
     // Initial fetch after 5 seconds
     setTimeout(fetchEnvironmentalPredictions, 5000);
-    setInterval(fetchEnvironmentalPredictions, 60000);
+    dashboardIntervals.predictions = setInterval(fetchEnvironmentalPredictions, 60000);
     
     // Update environment status every 10 seconds
-    setInterval(updateEnvironmentStatus, 10000);
+    dashboardIntervals.environment = setInterval(updateEnvironmentStatus, 10000);
 }
 
 // Fetch environmental predictions from ML models
@@ -651,144 +673,7 @@ async function updateEngagementChart() {
     }
 }
 
-// Initialize Occupancy Chart
-let occupancyChart = null;
-let occupancyHistory = [];
 
-function initOccupancyChart() {
-    const ctx = document.getElementById('occupancyChart');
-    if (!ctx) return;
-
-    // Initialize with empty data
-    const labels = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-        const time = new Date(now.getTime() - i * 60000); // Last 7 minutes
-        labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    }
-
-    occupancyChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Students Present',
-                    data: Array(7).fill(0),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    borderWidth: 3,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#10b981',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 15,
-                        font: {
-                            size: 13,
-                            weight: 500
-                        }
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    padding: 12,
-                    borderRadius: 8,
-                    titleFont: {
-                        size: 14,
-                        weight: 600
-                    },
-                    bodyFont: {
-                        size: 13
-                    },
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += context.parsed.y + ' students';
-                            return label;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 35,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)',
-                        drawBorder: false
-                    },
-                    ticks: {
-                        stepSize: 5,
-                        callback: function(value) {
-                            return value;
-                        }
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    }
-                }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
-        }
-    });
-    
-    // Start updating occupancy data every 5 seconds
-    setInterval(updateOccupancyChart, 5000);
-}
-
-// Update occupancy chart with real-time YOLO detection data
-function updateOccupancyChart() {
-    if (!occupancyChart) return;
-    
-    // Get current student count from YOLO detection (use dashboardData from API)
-    const currentStudents = dashboardData.studentsDetected || 0;
-    
-    // Add to history
-    occupancyHistory.push({
-        timestamp: new Date(),
-        count: currentStudents
-    });
-    
-    // Keep only last 20 data points (about 1.5 minutes at 5-second intervals)
-    if (occupancyHistory.length > 20) {
-        occupancyHistory.shift();
-    }
-    
-    // Update chart labels and data
-    const labels = occupancyHistory.map(item => 
-        item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    );
-    const data = occupancyHistory.map(item => item.count);
-    
-    occupancyChart.data.labels = labels;
-    occupancyChart.data.datasets[0].data = data;
-    occupancyChart.update('none'); // Update without animation for smoother real-time updates
-}
 
 // Initialize Forecast Chart (Gradient Boosting Predictions)
 let forecastChart = null;
@@ -895,7 +780,7 @@ function updateForecastChart(predictionData) {
     const predicted = predictionData.predicted_conditions || {};
     
     // Only update if we have actual prediction data
-    if (!predicted.predicted_temperature) {
+    if (!predicted.predicted_temperature && !predicted.predicted_humidity) {
         console.debug('No forecast data available yet - waiting for predictions');
         return;
     }
@@ -903,24 +788,27 @@ function updateForecastChart(predictionData) {
     console.log('✓ Updating forecast chart with data:', { current, predicted });
     
     // Update chart data with actual values
-    forecastChart.data.datasets[0].data = [
-        current.temperature || 0,
-        current.humidity || 0,
-        current.co2 || 0,
-        current.light || 0,
-        current.sound || 0
+    const currentData = [
+        parseFloat(current.temperature) || 0,
+        parseFloat(current.humidity) || 0,
+        parseFloat(current.gas) || parseFloat(current.co2) || 0,
+        parseFloat(current.light) || 0,
+        parseFloat(current.sound) || 0
     ];
     
-    forecastChart.data.datasets[1].data = [
-        predicted.predicted_temperature || current.temperature || 0,
-        predicted.predicted_humidity || current.humidity || 0,
-        predicted.predicted_gas || current.co2 || 0,
-        predicted.predicted_light || current.light || 0,
-        predicted.predicted_sound || current.sound || 0
+    const predictedData = [
+        parseFloat(predicted.predicted_temperature) || currentData[0],
+        parseFloat(predicted.predicted_humidity) || currentData[1],
+        parseFloat(predicted.predicted_gas) || currentData[2],
+        parseFloat(predicted.predicted_light) || currentData[3],
+        parseFloat(predicted.predicted_sound) || currentData[4]
     ];
     
-    forecastChart.update();
-    console.log('✓ Forecast chart updated');
+    forecastChart.data.datasets[0].data = currentData;
+    forecastChart.data.datasets[1].data = predictedData;
+    
+    forecastChart.update('none');
+    console.log('✓ Forecast chart updated successfully');
 }
 
 // Initialize 7 Emotions Chart (for Engagement States card)
@@ -1120,10 +1008,7 @@ async function updateEmotionChartData() {
     }
 }
 
-// Fetch Dashboard Data from Backend (deprecated - use fetchDashboardStats)
-function fetchDashboardData() {
-    fetchDashboardStats();
-}
+
 
 // =========================
 // Camera Management
@@ -1545,151 +1430,7 @@ if (!document.getElementById('dashboard-animations-style')) {
     `;
     document.head.appendChild(dashboardAnimationStyle);
 
-// =========================
-// LSTM Removed - Placeholder for Future Predictive Features
-// =========================
 
-function initLSTMPredictionChart() {
-    // LSTM functionality removed - no model available yet
-    return;
-    const ctx = document.getElementById('lstmPredictionChart');
-    if (!ctx) return;
-    
-    // Initialize with placeholder data
-    const timeLabels = [];
-    const now = new Date();
-    for (let i = -5; i <= 10; i++) {
-        const time = new Date(now.getTime() + i * 60000); // 1 minute intervals
-        timeLabels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
-    }
-    
-    lstmPredictionChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: timeLabels,
-            datasets: [
-                {
-                    label: 'Historical Engagement',
-                    data: Array(6).fill(null).concat(Array(10).fill(null)),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    borderWidth: 3,
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: 'Predicted Engagement',
-                    data: Array(6).fill(null).concat(Array(10).fill(null)),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    borderWidth: 3,
-                    borderDash: [10, 5],
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: 'Confidence Interval',
-                    data: Array(16).fill(null),
-                    borderColor: 'rgba(245, 158, 11, 0.3)',
-                    backgroundColor: 'rgba(245, 158, 11, 0.05)',
-                    borderWidth: 1,
-                    pointRadius: 0,
-                    tension: 0.4,
-                    fill: '+1'
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 15,
-                        font: {
-                            size: 11
-                        }
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    padding: 12,
-                    titleFont: {
-                        size: 13
-                    },
-                    bodyFont: {
-                        size: 12
-                    },
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed.y !== null) {
-                                label += context.parsed.y.toFixed(1) + '%';
-                            }
-                            return label;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 100,
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return value + '%';
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Engagement Level'
-                    }
-                },
-                x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
-                }
-            }
-        }
-    });
-}
-
-function updateLSTMPrediction() {
-    // LSTM functionality removed - no model available yet
-    return;
-}
-
-function updateLSTMChartWithAPIData(apiData) {
-    // LSTM functionality removed - no model available yet
-    return;
-}
-
-function updateLSTMChartSimulation() {
-    // LSTM functionality removed - no model available yet
-    return;
-}
 
 // ==================== Notification System ====================
 
@@ -1829,15 +1570,17 @@ function getTimeAgo(timestamp) {
 let lastNotificationTime = 0;
 let lastNotificationData = null;
 
-// Show notifications for prediction recommendations (max once per minute)
+// Show notifications for prediction recommendations (max once every 1-5 minutes)
 function showPredictionNotifications(recommendations, classification) {
     if (!recommendations || recommendations.length === 0) return;
     
     const now = Date.now();
     const notificationKey = JSON.stringify({ recommendations, classification: classification?.label });
     
-    // Only show notifications once per minute and if data changed
-    if (now - lastNotificationTime < 60000 && lastNotificationData === notificationKey) {
+    // Only show notifications once every 5 minutes (300000ms) OR if data significantly changed
+    const minInterval = 5 * 60 * 1000; // 5 minutes
+    if (now - lastNotificationTime < minInterval) {
+        // Even if data changed, respect minimum interval
         return;
     }
     
