@@ -415,6 +415,19 @@
             }, 5000);
         }
         
+        // Load saved credentials on page load (Remember Me functionality)
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedEmail = localStorage.getItem('staff_email');
+            const savedPassword = localStorage.getItem('staff_password');
+            const rememberMe = localStorage.getItem('remember_me') === 'true';
+            
+            if (rememberMe && savedEmail && savedPassword) {
+                document.getElementById('staff-email').value = savedEmail;
+                document.getElementById('staff-password').value = savedPassword;
+                document.getElementById('staff-remember').checked = true;
+            }
+        });
+        
         // Student Login Handler (No Credentials)
         document.getElementById('studentLoginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -446,6 +459,7 @@
             
             const identifier = document.getElementById('staff-email').value;
             const password = document.getElementById('staff-password').value;
+            const rememberMe = document.getElementById('staff-remember').checked;
             
             try {
                 // Auto-detect role based on email/username format
@@ -469,6 +483,18 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    // Handle "Remember Me" functionality
+                    if (rememberMe) {
+                        localStorage.setItem('staff_email', identifier);
+                        localStorage.setItem('staff_password', password);
+                        localStorage.setItem('remember_me', 'true');
+                    } else {
+                        // Clear saved credentials if "Remember Me" is unchecked
+                        localStorage.removeItem('staff_email');
+                        localStorage.removeItem('staff_password');
+                        localStorage.removeItem('remember_me');
+                    }
+                    
                     localStorage.setItem('user', JSON.stringify(data.user));
                     localStorage.setItem('token', data.token);
                     const roleText = data.user.role === 'admin' ? 'Admin' : 'Teacher';

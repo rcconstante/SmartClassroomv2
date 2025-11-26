@@ -369,6 +369,66 @@ def get_iot_sensor_alerts():
     }), 200
 
 
+@app.route('/api/iot/reconnect', methods=['POST'])
+def reconnect_iot():
+    """Reconnect to IoT sensors without restarting the app"""
+    global iot_enabled
+    
+    if not initialize_iot:
+        return jsonify({
+            'success': False,
+            'message': 'IoT module not available'
+        }), 503
+    
+    try:
+        # Get current sensor instance
+        sensor = get_iot_sensor() if get_iot_sensor else None
+        
+        # If sensor exists and is already connected and reading, confirm status
+        if sensor and sensor.is_connected and sensor.is_reading:
+            return jsonify({
+                'success': True,
+                'message': 'IoT sensors already connected and reading',
+                'port': sensor.port,
+                'status': sensor.get_status()
+            }), 200
+        
+        # If sensor exists but not reading, try to start reading
+        if sensor and sensor.is_connected and not sensor.is_reading:
+            if sensor.start_reading():
+                return jsonify({
+                    'success': True,
+                    'message': 'IoT sensor reading started',
+                    'port': sensor.port,
+                    'status': sensor.get_status()
+                }), 200
+        
+        # Otherwise, reinitialize completely
+        print("[IoT] Manual reconnection requested...")
+        iot_enabled = initialize_iot(port='COM5', baudrate=9600)
+        
+        if iot_enabled:
+            sensor = get_iot_sensor()
+            return jsonify({
+                'success': True,
+                'message': 'Successfully connected to IoT sensors',
+                'port': sensor.port if sensor else 'COM5',
+                'status': sensor.get_status() if sensor else {}
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to connect to Arduino. Make sure Arduino IDE Serial Monitor is closed and device is connected to COM5.'
+            }), 500
+            
+    except Exception as e:
+        print(f"[IoT] Reconnection error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Reconnection failed: {str(e)}'
+        }), 500
+
+
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""

@@ -836,6 +836,10 @@ function loadAnalytics() {
                         <p class="card-subtitle">Real-time environmental monitoring (Auto-updating)</p>
                     </div>
                     <div style="display: flex; gap: 12px;">
+                        <button id="reconnectIoTBtn" class="btn btn-secondary" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);">
+                            <i data-lucide="refresh-cw"></i>
+                            Reconnect IoT
+                        </button>
                         <button id="toggleIoTLoggingBtn" class="btn btn-secondary" data-logging="false">
                             <i data-lucide="database"></i>
                             Start Database Logging
@@ -955,6 +959,14 @@ async function initAnalytics() {
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', () => exportAnalyticsCSV(7, true));
+        }
+        
+        // IoT Reconnect Button
+        const reconnectIoTBtn = document.getElementById('reconnectIoTBtn');
+        if (reconnectIoTBtn) {
+            reconnectIoTBtn.addEventListener('click', async () => {
+                await reconnectIoT();
+            });
         }
         
         // IoT Database Logging Controls
@@ -1862,6 +1874,48 @@ function searchHelpContent(query) {
 }
 
 // IoT Database Logging Functions
+async function reconnectIoT() {
+    const btn = document.getElementById('reconnectIoTBtn');
+    const originalHTML = btn.innerHTML;
+    
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Reconnecting...';
+        lucide.createIcons();
+        
+        const response = await fetch('/api/iot/reconnect', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(
+                'IoT Connected',
+                result.message,
+                'success'
+            );
+            
+            // Refresh IoT data immediately
+            await updateIoTData();
+        } else {
+            showNotification(
+                'Connection Failed',
+                result.message,
+                'error'
+            );
+        }
+    } catch (error) {
+        console.error('IoT reconnection error:', error);
+        showNotification(
+            'Connection Error',
+            'Failed to reconnect to IoT sensors. Check console for details.',
+            'error'
+        );
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        lucide.createIcons();
+    }
+}
+
 async function toggleIoTLogging() {
     const btn = document.getElementById('toggleIoTLoggingBtn');
     const isLogging = btn.getAttribute('data-logging') === 'true';
