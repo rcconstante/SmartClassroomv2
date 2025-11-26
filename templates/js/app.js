@@ -779,22 +779,8 @@ function loadAnalytics() {
             <div class="card card-full">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Engagement Trends</h3>
-                        <p class="card-subtitle">Real-time high vs low engagement tracking (today's data)</p>
-                    </div>
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <label for="analyticsStartDate" style="font-size: 13px; color: var(--text-secondary);">From:</label>
-                            <input type="date" id="analyticsStartDate" class="date-input" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: var(--bg-primary); color: var(--text-primary);">
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <label for="analyticsEndDate" style="font-size: 13px; color: var(--text-secondary);">To:</label>
-                            <input type="date" id="analyticsEndDate" class="date-input" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: var(--bg-primary); color: var(--text-primary);">
-                        </div>
-                        <button id="refreshAnalyticsBtn" class="btn btn-secondary" style="padding: 6px 16px; font-size: 13px;">
-                            <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                            Refresh
-                        </button>
+                        <h3 class="card-title">Student Engagement</h3>
+                        <p class="card-subtitle">Real-time high vs low engagement tracking from camera</p>
                     </div>
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -807,7 +793,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Classroom Presence</h3>
-                        <p class="card-subtitle">Real-time student detection (today's data)</p>
+                        <p class="card-subtitle">Real-time student detection from camera</p>
                     </div>
                 </div>
                 <div class="chart-container">
@@ -880,23 +866,6 @@ function loadAnalytics() {
 // Initialize Analytics
 async function initAnalytics() {
     try {
-        // Set default dates (last 7 days to today)
-        const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 6);
-        
-        const startDateInput = document.getElementById('analyticsStartDate');
-        const endDateInput = document.getElementById('analyticsEndDate');
-        
-        if (startDateInput && endDateInput) {
-            startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
-            endDateInput.value = today.toISOString().split('T')[0];
-            
-            // Set max date to today
-            startDateInput.max = today.toISOString().split('T')[0];
-            endDateInput.max = today.toISOString().split('T')[0];
-        }
-        
         // Fetch real analytics summary
         const summaryResponse = await fetch('/api/analytics/summary');
         const summary = await summaryResponse.json();
@@ -908,14 +877,9 @@ async function initAnalytics() {
         // Update stat cards with real data
         updateAnalyticsStats(summary);
         
-        // Fetch and display initial data
-        await refreshAnalyticsCharts();
-        
-        // Poll analytics charts every 5 seconds for real-time updates
-        if (!window.analyticsRefreshInterval) {
-            window.analyticsRefreshInterval = setInterval(refreshAnalyticsCharts, 5000);
-            console.log('✓ Started analytics chart polling (5 second interval)');
-        }
+        // Initialize charts with empty data - they will be populated by the real-time patch
+        initAnalyticsEngagementChart([]);
+        initAnalyticsPresenceChart([]);
         
         // Use emotion history averages instead of real-time data
         if (emotionHistory.success && emotionHistory.average_emotions) {
@@ -938,18 +902,10 @@ async function initAnalytics() {
             console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
-        // Add refresh button listener
-        const refreshBtn = document.getElementById('refreshAnalyticsBtn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', refreshAnalyticsCharts);
-        }
-        
-        // Add date change listeners
-        if (startDateInput) {
-            startDateInput.addEventListener('change', refreshAnalyticsCharts);
-        }
-        if (endDateInput) {
-            endDateInput.addEventListener('change', refreshAnalyticsCharts);
+        // Start real-time analytics chart updates every 5 seconds
+        if (!window.analyticsRefreshInterval) {
+            window.analyticsRefreshInterval = setInterval(refreshAnalyticsCharts, 5000);
+            console.log('✓ Started analytics chart polling (5 second interval)');
         }
         
         const exportBtn = document.getElementById('exportAnalyticsBtn');
@@ -1037,45 +993,11 @@ function updateAnalyticsStats(summary) {
     }
 }
 
-// Refresh analytics with new date range
 // Refresh analytics charts with selected date range
 async function refreshAnalyticsCharts() {
-    try {
-        const startDate = document.getElementById('analyticsStartDate')?.value;
-        const endDate = document.getElementById('analyticsEndDate')?.value;
-        
-        if (!startDate || !endDate) {
-            console.warn('Start or end date not selected');
-            return;
-        }
-        
-        // Fetch engagement trends with date range
-        const trendsUrl = `/api/analytics/engagement-trends?start_date=${startDate}&end_date=${endDate}`;
-        const trendsResponse = await fetch(trendsUrl);
-        const trendsData = await trendsResponse.json();
-        
-        // Fetch presence trends with date range
-        const presenceUrl = `/api/analytics/presence-trends?start_date=${startDate}&end_date=${endDate}`;
-        const presenceResponse = await fetch(presenceUrl);
-        const presenceData = await presenceResponse.json();
-        
-        // Update charts with new data
-        if (window.analyticsEngagementChart) {
-            updateAnalyticsEngagementChart(trendsData.data);
-        } else {
-            initAnalyticsEngagementChart(trendsData.data);
-        }
-        
-        if (window.analyticsPresenceChart) {
-            updateAnalyticsPresenceChart(presenceData.data);
-        } else {
-            initAnalyticsPresenceChart(presenceData.data);
-        }
-        
-        console.log(`✓ Analytics refreshed for ${startDate} to ${endDate}`);
-    } catch (error) {
-        console.error('Error refreshing analytics:', error);
-    }
+    // This function is now overridden by analytics-patch.js to use real-time CV data
+    // The patch will handle updating the charts with live camera feed data
+    console.log('refreshAnalyticsCharts called - will be handled by analytics-patch.js');
 }
 
 async function refreshAnalytics(days) {
