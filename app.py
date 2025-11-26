@@ -13,6 +13,9 @@ import cv2
 import sqlite3
 import threading
 import time
+import pickle
+import pandas as pd
+import numpy as np
 
 # Suppress OpenCV warnings for cleaner console output
 os.environ['OPENCV_LOG_LEVEL'] = 'ERROR'
@@ -32,6 +35,161 @@ CORS(app)
 # Configuration
 app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this in production
 app.config['JSON_SORT_KEYS'] = False
+
+# =========================
+# Gradient Boosting Model Loading
+# =========================
+
+# Global variables for ML models
+gb_model = None
+rf_model = None
+gb_scaler = None
+feature_columns = None
+models_loaded = False
+
+def load_ml_models():
+    """Load Gradient Boosting and Random Forest models"""
+    global gb_model, rf_model, gb_scaler, feature_columns, models_loaded
+    
+    try:
+        model_dir = 'static/model'
+        
+        # Load Gradient Boosting model
+        with open(os.path.join(model_dir, 'gb_model_with_complementing.pkl'), 'rb') as f:
+            gb_model = pickle.load(f)
+        print("[ML] ✓ Gradient Boosting model loaded")
+        
+        # Load Random Forest model
+        with open(os.path.join(model_dir, 'rf_model_with_complementing.pkl'), 'rb') as f:
+            rf_model = pickle.load(f)
+        print("[ML] ✓ Random Forest model loaded")
+        
+        # Load scaler
+        with open(os.path.join(model_dir, 'gb_scaler.pkl'), 'rb') as f:
+            gb_scaler = pickle.load(f)
+        print("[ML] ✓ Scaler loaded")
+        
+        # Load feature columns
+        with open(os.path.join(model_dir, 'feature_columns.pkl'), 'rb') as f:
+            feature_columns = pickle.load(f)
+        print(f"[ML] ✓ Feature columns loaded ({len(feature_columns)} features)")
+        
+        models_loaded = True
+        print("[ML] ✓ All ML models loaded successfully")
+        return True
+        
+    except Exception as e:
+        print(f"[ML] ✗ Failed to load ML models: {e}")
+        models_loaded = False
+        return False
+
+# Load models on startup
+load_ml_models()
+
+# =========================
+# Feature Engineering Functions (from Emotion-b2.py)
+# =========================
+
+def create_time_series_features(df, forecast_features, complementing_features, windows=[5, 10, 15, 20]):
+    """
+    Create rolling statistics and lagged features for time series prediction
+    
+    Args:
+        df: DataFrame with sensor and engagement data
+        forecast_features: List of features to forecast (environmental sensors)
+        complementing_features: List of complementing features (occupancy, engagement)
+        windows: Rolling window sizes
+    
+    Returns:
+        DataFrame with engineered features
+    """
+    df_features = df.copy()
+    
+    # Create features for ENVIRONMENTAL variables only
+    for feature in forecast_features:
+        # Rolling statistics
+        for window in windows:
+            df_features[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
+            df_features[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
+            df_features[f'{feature}_roll_min_{window}'] = df[feature].rolling(window=window, min_periods=1).min()
+            df_features[f'{feature}_roll_max_{window}'] = df[feature].rolling(window=window, min_periods=1).max()
+        
+        # Lagged features
+        for lag in [1, 2, 3, 5, 10]:
+            df_features[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
+        
+        # Trend features
+        df_features[f'{feature}_trend_5'] = df[feature].diff(5)
+        df_features[f'{feature}_trend_10'] = df[feature].diff(10)
+    
+    # ADD COMPLEMENTING FEATURES with their own rolling stats
+    for feature in complementing_features:
+        # Rolling statistics for complementing features
+        for window in [5, 10, 15]:
+            df_features[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
+            df_features[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
+        
+        # Lagged features
+        for lag in [1, 2, 5]:
+            df_features[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
+    
+    # Additional interaction features
+    df_features['engagement_ratio'] = df_features['high_engagement'] / (df_features['low_engagement'] + 1)
+    df_features['occupancy_engagement'] = df_features['occupancy'] * df_features['high_engagement']
+    
+    # Drop rows with NaN
+    df_features = df_features.dropna()
+    
+    return df_features
+
+def classify_comfort(temperature, humidity, gas, light, sound):
+    """
+    Classify room comfort based on optimal ranges
+    Returns: 0=Critical, 1=Poor, 2=Acceptable, 3=Optimal
+    """
+    score = 0
+    
+    # Temperature (22-24°C optimal)
+    if 22 <= temperature <= 24:
+        score += 1
+    elif 21 <= temperature <= 25:
+        score += 0.5
+    
+    # Humidity (30-50% optimal)
+    if 30 <= humidity <= 50:
+        score += 1
+    elif 25 <= humidity <= 55:
+        score += 0.5
+    
+    # CO2/Gas (<800 ppm good)
+    if gas < 800:
+        score += 1
+    elif gas < 1000:
+        score += 0.5
+    
+    # Lighting (150-250 lux optimal)
+    if 150 <= light <= 250:
+        score += 1
+    elif 100 <= light <= 300:
+        score += 0.5
+    
+    # Noise (35-60 dBA acceptable)
+    if 35 <= sound <= 60:
+        score += 1
+    elif sound <= 70:
+        score += 0.5
+    
+    # Classification
+    if score >= 4.5:
+        return 3  # Optimal
+    elif score >= 3:
+        return 2  # Acceptable
+    elif score >= 1.5:
+        return 1  # Poor
+    else:
+        return 0  # Critical
+
+comfort_labels_map = {0: 'Critical', 1: 'Poor', 2: 'Acceptable', 3: 'Optimal'}
 
 # In-memory data storage (use a database in production)
 classroom_data = {
@@ -734,84 +892,43 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends within 30 minutes - Real-time data from emotion history"""
-    global emotion_history
+    """Get engagement trends over time - Real data from current session (30-minute intervals)"""
+    minutes = request.args.get('minutes', default=30, type=int)
     
-    # Get current time
-    current_time = datetime.now()
-    thirty_minutes_ago = current_time - timedelta(minutes=30)
+    # Get current engagement stats
+    current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     
-    # Filter emotion history to last 30 minutes
-    recent_history = []
-    for snapshot in emotion_history:
-        try:
-            snapshot_time = datetime.fromisoformat(snapshot['timestamp'])
-            if snapshot_time >= thirty_minutes_ago:
-                recent_history.append(snapshot)
-        except:
-            continue
+    # Get emotion data
+    emotion_data = current_emotion_stats.get('emotion_percentages', {})
     
-    # If no history, return current stats only
-    if not recent_history:
-        current_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
-        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
-        emotion_data = current_emotion_stats.get('emotion_percentages', {})
-        
-        high_engaged_pct = (emotion_data.get('Happy', 0) + 
-                            emotion_data.get('Surprise', 0) + 
-                            emotion_data.get('Neutral', 0))
-        low_engaged_pct = (emotion_data.get('Fear', 0) + 
-                           emotion_data.get('Sad', 0) + 
-                           emotion_data.get('Disgust', 0) + 
-                           emotion_data.get('Angry', 0))
-        
-        trends = {
-            'period': 'Last 30 minutes',
-            'data': [
-                {
-                    'time': current_time.strftime('%H:%M'),
-                    'avgEngagement': current_engagement,
-                    'highlyEngaged': round(high_engaged_pct),
-                    'disengaged': round(low_engaged_pct),
-                    'studentsPresent': current_students
-                }
-            ]
-        }
-        return jsonify(trends), 200
+    # High Engaged = Happy + Surprise + Neutral
+    high_engaged_pct = (emotion_data.get('Happy', 0) + 
+                        emotion_data.get('Surprise', 0) + 
+                        emotion_data.get('Neutral', 0))
     
-    # Sample data every minute from the 30-minute window (max 30 points)
-    sample_interval = max(1, len(recent_history) // 30)
-    sampled_data = recent_history[::sample_interval]
+    # Low Engaged = Fear + Sad + Disgust + Angry
+    low_engaged_pct = (emotion_data.get('Fear', 0) + 
+                       emotion_data.get('Sad', 0) + 
+                       emotion_data.get('Disgust', 0) + 
+                       emotion_data.get('Angry', 0))
     
-    # Build trend data from sampled history
-    trend_data = []
-    for snapshot in sampled_data:
-        emotion_pcts = snapshot.get('emotion_percentages', {})
-        
-        high_engaged = (emotion_pcts.get('Happy', 0) + 
-                       emotion_pcts.get('Surprise', 0) + 
-                       emotion_pcts.get('Neutral', 0))
-        low_engaged = (emotion_pcts.get('Fear', 0) + 
-                      emotion_pcts.get('Sad', 0) + 
-                      emotion_pcts.get('Disgust', 0) + 
-                      emotion_pcts.get('Angry', 0))
-        
-        try:
-            time_str = datetime.fromisoformat(snapshot['timestamp']).strftime('%H:%M')
-        except:
-            time_str = 'N/A'
-        
-        trend_data.append({
-            'time': time_str,
-            'avgEngagement': round(snapshot.get('engagement', 0)),
-            'highlyEngaged': round(high_engaged),
-            'disengaged': round(low_engaged),
-            'studentsPresent': snapshot.get('total_faces', 0)
+    # Generate data points for last 30 minutes (1-minute intervals)
+    data_points = []
+    for i in range(minutes - 1, -1, -1):
+        timestamp = datetime.now() - timedelta(minutes=i)
+        data_points.append({
+            'date': timestamp.isoformat(),
+            'time': timestamp.strftime('%H:%M'),
+            'avgEngagement': current_engagement if i == 0 else 0,
+            'highlyEngaged': round(high_engaged_pct) if i == 0 else 0,
+            'disengaged': round(low_engaged_pct) if i == 0 else 0,
+            'studentsPresent': current_students if i == 0 else 0
         })
     
     trends = {
-        'period': 'Last 30 minutes',
-        'data': trend_data
+        'period': f'Last {minutes} minutes',
+        'data': data_points
     }
     return jsonify(trends), 200
 
@@ -939,304 +1056,26 @@ def get_analytics_summary():
 # Routes - Alerts
 # =========================
 
-# Alert tracking to prevent spam
-last_alert_time = {}
-ALERT_COOLDOWN = 60  # 1 minute in seconds
-
 @app.route('/api/alerts', methods=['GET'])
 def get_alerts():
-    """Get current alerts and notifications based on real sensor data and predictions"""
-    global last_alert_time
-    
-    alerts = []
-    current_time = time.time()
-    
-    # Check IoT sensor data for alerts
-    if iot_enabled and get_iot_data:
-        iot_data = get_iot_data()
-        if iot_data and iot_data.get('timestamp'):
-            temp = iot_data.get('raw_temperature', 0)
-            humidity = iot_data.get('raw_humidity', 0)
-            gas = iot_data.get('raw_gas', 0)
-            
-            # Temperature alerts (optimal 22-24°C)
-            if temp > 26 and (current_time - last_alert_time.get('high_temp', 0)) > ALERT_COOLDOWN:
-                alerts.append({
-                    'id': 'temp_high',
-                    'type': 'warning',
-                    'title': 'High Temperature',
-                    'message': f'Temperature is {temp:.1f}°C (optimal: 22-24°C)',
-                    'timestamp': datetime.now().isoformat()
-                })
-                last_alert_time['high_temp'] = current_time
-            elif temp < 20 and (current_time - last_alert_time.get('low_temp', 0)) > ALERT_COOLDOWN:
-                alerts.append({
-                    'id': 'temp_low',
-                    'type': 'warning',
-                    'title': 'Low Temperature',
-                    'message': f'Temperature is {temp:.1f}°C (optimal: 22-24°C)',
-                    'timestamp': datetime.now().isoformat()
-                })
-                last_alert_time['low_temp'] = current_time
-            
-            # Humidity alerts (optimal 30-50%)
-            if humidity > 60 and (current_time - last_alert_time.get('high_humidity', 0)) > ALERT_COOLDOWN:
-                alerts.append({
-                    'id': 'humidity_high',
-                    'type': 'warning',
-                    'title': 'High Humidity',
-                    'message': f'Humidity is {humidity:.1f}% (optimal: 30-50%)',
-                    'timestamp': datetime.now().isoformat()
-                })
-                last_alert_time['high_humidity'] = current_time
-            elif humidity < 25 and (current_time - last_alert_time.get('low_humidity', 0)) > ALERT_COOLDOWN:
-                alerts.append({
-                    'id': 'humidity_low',
-                    'type': 'warning',
-                    'title': 'Low Humidity',
-                    'message': f'Humidity is {humidity:.1f}% (optimal: 30-50%)',
-                    'timestamp': datetime.now().isoformat()
-                })
-                last_alert_time['low_humidity'] = current_time
-            
-            # Air quality alerts (gas sensor - lower is better)
-            if gas > 800 and (current_time - last_alert_time.get('poor_air', 0)) > ALERT_COOLDOWN:
-                alerts.append({
-                    'id': 'air_quality',
-                    'type': 'warning',
-                    'title': 'Poor Air Quality',
-                    'message': f'CO2 levels elevated ({gas} ppm). Consider ventilation.',
-                    'timestamp': datetime.now().isoformat()
-                })
-                last_alert_time['poor_air'] = current_time
-    
-    # Check engagement for alerts
-    if classroom_data['current_stats'].get('avgEngagement', 0) < 50:
-        if (current_time - last_alert_time.get('low_engagement', 0)) > ALERT_COOLDOWN:
-            alerts.append({
-                'id': 'engagement_low',
-                'type': 'info',
-                'title': 'Low Engagement Detected',
-                'message': f'Class engagement is {classroom_data["current_stats"]["avgEngagement"]}%',
-                'timestamp': datetime.now().isoformat()
-            })
-            last_alert_time['low_engagement'] = current_time
-    
+    """Get current alerts and notifications"""
+    alerts = [
+        {
+            'id': 1,
+            'type': 'warning',
+            'title': 'Low Engagement Detected',
+            'message': 'Engagement level dropped below 60%',
+            'timestamp': (datetime.now() - timedelta(minutes=5)).isoformat()
+        },
+        {
+            'id': 2,
+            'type': 'info',
+            'title': 'Temperature Alert',
+            'message': 'Classroom temperature is 27°C',
+            'timestamp': (datetime.now() - timedelta(minutes=15)).isoformat()
+        }
+    ]
     return jsonify(alerts), 200
-
-
-# =========================
-# Camera System API
-# =========================
-
-# Gradient Boosting Model - Global variables
-gb_model = None
-gb_scaler = None
-gb_feature_columns = None
-
-def load_gradient_boosting_model():
-    """Load gradient boosting forecasting model and related files"""
-    global gb_model, gb_scaler, gb_feature_columns
-    
-    try:
-        import pickle
-        model_dir = 'static/model'
-        
-        # Load gradient boosting model
-        with open(f'{model_dir}/gradient_boosting_forecasting_model.pkl', 'rb') as f:
-            gb_model = pickle.load(f)
-        
-        # Load scaler
-        with open(f'{model_dir}/gb_scaler.pkl', 'rb') as f:
-            gb_scaler = pickle.load(f)
-        
-        # Load feature columns
-        with open(f'{model_dir}/feature_columns.pkl', 'rb') as f:
-            gb_feature_columns = pickle.load(f)
-        
-        print("✓ Gradient Boosting forecasting model loaded successfully")
-        return True
-    except Exception as e:
-        print(f"⚠ Warning: Could not load Gradient Boosting model: {e}")
-        return False
-
-# Load model at startup
-gb_model_loaded = load_gradient_boosting_model()
-
-@app.route('/api/forecast/gradient-boosting', methods=['POST'])
-def gradient_boosting_forecast():
-    """
-    Gradient Boosting forecasting endpoint using engineered features
-    Expects historical sensor data and returns next timestep forecast
-    Model uses rolling statistics, lagged features, and trends
-    """
-    if not gb_model_loaded or gb_model is None:
-        return jsonify({
-            'success': False,
-            'error': 'Gradient Boosting model not available'
-        }), 503
-    
-    try:
-        import numpy as np
-        import pandas as pd
-        from camera_system.iot_sensor import iot_sensor
-        
-        # Get IoT sensor history (need at least 20 readings for feature engineering)
-        if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
-            return jsonify({
-                'success': False,
-                'error': 'IoT database logging not active. Start logging first.',
-                'message': 'Click "Start DB Logging" to enable forecasting'
-            }), 503
-        
-        # Get recent historical data from database
-        history_data = iot_sensor.get_recent_data(limit=30)  # Get last 30 readings
-        
-        if len(history_data) < 20:
-            return jsonify({
-                'success': False,
-                'error': f'Insufficient data for prediction. Need at least 20 readings, have {len(history_data)}',
-                'message': 'Continue logging data to enable forecasting'
-            }), 503
-        
-        # Create DataFrame from history
-        df = pd.DataFrame(history_data)
-        
-        # Feature engineering - create rolling statistics and lagged features
-        forecast_features = ['temperature', 'humidity', 'gas', 'light', 'sound']
-        windows = [5, 10, 15, 20]
-        
-        for feature in forecast_features:
-            # Rolling statistics
-            for window in windows:
-                df[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
-                df[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
-                df[f'{feature}_roll_min_{window}'] = df[feature].rolling(window=window, min_periods=1).min()
-                df[f'{feature}_roll_max_{window}'] = df[feature].rolling(window=window, min_periods=1).max()
-            
-            # Lagged features (previous values)
-            for lag in [1, 2, 3, 5, 10]:
-                df[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
-            
-            # Trend features
-            df[f'{feature}_trend_5'] = df[feature].diff(5)
-            df[f'{feature}_trend_10'] = df[feature].diff(10)
-        
-        # Drop NaN values from feature engineering
-        df = df.dropna()
-        
-        if len(df) == 0:
-            return jsonify({
-                'success': False,
-                'error': 'Not enough data after feature engineering',
-                'message': 'Continue logging to accumulate more data'
-            }), 503
-        
-        # Get the last row for prediction
-        latest_row = df.iloc[-1]
-        
-        # Prepare input features (must match training feature_cols order)
-        if gb_feature_columns:
-            # Extract features in correct order
-            X_input = []
-            for col in gb_feature_columns:
-                if col in df.columns:
-                    X_input.append(latest_row[col])
-                else:
-                    X_input.append(0)  # Default value for missing features
-            
-            X_input = np.array(X_input).reshape(1, -1)
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Feature columns not loaded'
-            }), 503
-        
-        # Scale input features
-        X_scaled = gb_scaler.transform(X_input)
-        
-        # Make prediction (next timestep values)
-        predicted_values = gb_model.predict(X_scaled)[0]
-        
-        # Get current values
-        current = {
-            'temperature': round(float(latest_row['temperature']), 1),
-            'humidity': round(float(latest_row['humidity']), 1),
-            'gas': round(float(latest_row['gas']), 0),
-            'light': round(float(latest_row['light']), 0),
-            'sound': round(float(latest_row['sound']), 0),
-            'timestamp': latest_row['timestamp'] if 'timestamp' in latest_row else datetime.now().isoformat()
-        }
-        
-        # Create forecast result
-        forecast = {
-            'current': current,
-            'predicted': {
-                'temperature': round(float(predicted_values[0]), 1),
-                'humidity': round(float(predicted_values[1]), 1),
-                'gas': round(float(predicted_values[2]), 0),
-                'light': round(float(predicted_values[3]), 0),
-                'sound': round(float(predicted_values[4]), 0),
-                'timestamp': (datetime.now() + timedelta(minutes=1)).isoformat()  # Next reading
-            },
-            'changes': {
-                'temperature': round(float(predicted_values[0]) - current['temperature'], 2),
-                'humidity': round(float(predicted_values[1]) - current['humidity'], 2),
-                'gas': round(float(predicted_values[2]) - current['gas'], 0),
-                'light': round(float(predicted_values[3]) - current['light'], 0),
-                'sound': round(float(predicted_values[4]) - current['sound'], 0)
-            }
-        }
-        
-        # Add recommendations based on predictions
-        recommendations = []
-        
-        # Temperature recommendations (optimal: 22-24°C)
-        if forecast['predicted']['temperature'] > 26:
-            recommendations.append('⚠️ Temperature rising → Turn ON fan/AC')
-        elif forecast['predicted']['temperature'] < 20:
-            recommendations.append('⚠️ Temperature dropping → Reduce cooling or add heating')
-        
-        # Humidity recommendations (optimal: 30-50%)
-        if forecast['predicted']['humidity'] > 60:
-            recommendations.append('⚠️ Humidity increasing → Improve ventilation')
-        elif forecast['predicted']['humidity'] < 30:
-            recommendations.append('⚠️ Humidity decreasing → Consider humidifier')
-        
-        # CO2 recommendations (optimal: <800 ppm)
-        if forecast['predicted']['gas'] > 800:
-            recommendations.append('⚠️ CO₂ levels rising → Open windows or improve ventilation')
-        
-        # Light recommendations (optimal: 150-250 lux)
-        if forecast['predicted']['light'] < 150:
-            recommendations.append('⚠️ Light levels dropping → Increase lighting')
-        elif forecast['predicted']['light'] > 300:
-            recommendations.append('ℹ️ Light levels high → Consider dimming if needed')
-        
-        # Sound recommendations (optimal: 35-60 dBA)
-        if forecast['predicted']['sound'] > 70:
-            recommendations.append('⚠️ Noise levels rising → Maintain quiet environment')
-        
-        if not recommendations:
-            recommendations.append('✅ All conditions predicted to remain optimal')
-        
-        forecast['recommendations'] = recommendations
-        
-        return jsonify({
-            'success': True,
-            'forecast': forecast,
-            'model': 'Gradient Boosting (with feature engineering)',
-            'data_points_used': len(history_data),
-            'generated_at': datetime.now().isoformat()
-        }), 200
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': f'Prediction error: {str(e)}'
-        }), 500
 
 
 # =========================
@@ -1659,6 +1498,362 @@ def clear_emotion_history():
         'success': True,
         'message': 'Emotion history cleared'
     }), 200
+
+# =========================
+# Gradient Boosting Prediction API
+# =========================
+
+@app.route('/api/prediction/forecast', methods=['GET'])
+def get_forecast_prediction():
+    """
+    Get environmental forecasting using Gradient Boosting model
+    Uses recent IoT sensor data to predict next values
+    """
+    if not models_loaded:
+        return jsonify({
+            'success': False,
+            'error': 'ML models not loaded'
+        }), 503
+    
+    if not iot_enabled or not iot_sensor:
+        return jsonify({
+            'success': False,
+            'error': 'IoT sensors not available'
+        }), 503
+    
+    try:
+        # Get recent data (last 30 readings minimum for feature engineering)
+        recent_data = iot_sensor.get_recent_data(limit=30)
+        
+        if len(recent_data) < 20:
+            return jsonify({
+                'success': False,
+                'error': 'Insufficient data for prediction (need at least 20 readings)',
+                'message': 'Please start IoT logging and wait for data collection'
+            }), 200
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(recent_data)
+        
+        # Define features
+        forecast_features = ['temperature', 'humidity', 'gas', 'light', 'sound']
+        complementing_features = ['occupancy', 'high_engagement', 'low_engagement']
+        
+        # Create time series features
+        df_engineered = create_time_series_features(df, forecast_features, complementing_features)
+        
+        if len(df_engineered) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'Feature engineering failed - insufficient data'
+            }), 200
+        
+        # Get latest feature row
+        X_current = df_engineered[feature_columns].iloc[-1:].values
+        X_current_scaled = gb_scaler.transform(X_current)
+        
+        # Predict next environmental values using Gradient Boosting
+        future_values = gb_model.predict(X_current_scaled)[0]
+        
+        # Get current values for comparison
+        current_row = df.iloc[-1]
+        
+        # Prepare RF input for comfort classification
+        rf_input = pd.DataFrame([{
+            'temperature': current_row['temperature'],
+            'humidity': current_row['humidity'],
+            'gas': current_row['gas'],
+            'light': current_row['light'],
+            'sound': current_row['sound'],
+            'occupancy': current_row['occupancy'],
+            'high_engagement': current_row['high_engagement'],
+            'low_engagement': current_row['low_engagement'],
+            'predicted_temperature': future_values[0],
+            'predicted_humidity': future_values[1],
+            'predicted_gas': future_values[2],
+            'predicted_light': future_values[3],
+            'predicted_sound': future_values[4],
+            'hour': current_row['hour'],
+            'minute': current_row['minute']
+        }])
+        
+        # Predict comfort level
+        comfort_prediction = rf_model.predict(rf_input)[0]
+        comfort_proba = rf_model.predict_proba(rf_input)[0]
+        actual_classes = rf_model.classes_
+        
+        # Get confidence
+        pred_idx = np.where(actual_classes == comfort_prediction)[0][0]
+        confidence = float(comfort_proba[pred_idx] * 100)
+        
+        # Generate recommendations
+        recommendations = []
+        if future_values[0] > 24:
+            recommendations.append({'type': 'warning', 'message': 'Temperature rising - Consider cooling'})
+        elif future_values[0] < 22:
+            recommendations.append({'type': 'warning', 'message': 'Temperature dropping - Reduce cooling'})
+        
+        if future_values[2] > 800:
+            recommendations.append({'type': 'alert', 'message': 'CO₂ levels high - Ventilation needed'})
+        
+        if future_values[1] < 30:
+            recommendations.append({'type': 'warning', 'message': 'Low humidity - Consider humidifier'})
+        elif future_values[1] > 50:
+            recommendations.append({'type': 'warning', 'message': 'High humidity - Ventilation needed'})
+        
+        if future_values[3] < 150:
+            recommendations.append({'type': 'info', 'message': 'Low light - Increase lighting'})
+        elif future_values[3] > 250:
+            recommendations.append({'type': 'info', 'message': 'Bright lighting - Consider dimming'})
+        
+        if current_row['low_engagement'] > current_row['high_engagement']:
+            recommendations.append({'type': 'warning', 'message': 'Low student engagement detected'})
+        
+        if comfort_prediction <= 1:
+            recommendations.append({'type': 'alert', 'message': 'ALERT: Uncomfortable conditions predicted'})
+        
+        if not recommendations:
+            recommendations.append({'type': 'success', 'message': 'All conditions optimal'})
+        
+        # Calculate probabilities for all comfort levels
+        comfort_probabilities = {}
+        for i, cls in enumerate(actual_classes):
+            comfort_probabilities[comfort_labels_map[cls]] = float(comfort_proba[i] * 100)
+        
+        # Return prediction results
+        return jsonify({
+            'success': True,
+            'timestamp': datetime.now().isoformat(),
+            'current': {
+                'temperature': float(current_row['temperature']),
+                'humidity': float(current_row['humidity']),
+                'gas': int(current_row['gas']),
+                'light': float(current_row['light']),
+                'sound': int(current_row['sound']),
+                'occupancy': int(current_row['occupancy']),
+                'high_engagement': int(current_row['high_engagement']),
+                'low_engagement': int(current_row['low_engagement'])
+            },
+            'predicted': {
+                'temperature': float(future_values[0]),
+                'humidity': float(future_values[1]),
+                'gas': int(future_values[2]),
+                'light': float(future_values[3]),
+                'sound': int(future_values[4]),
+                'delta_temperature': float(future_values[0] - current_row['temperature']),
+                'delta_humidity': float(future_values[1] - current_row['humidity']),
+                'delta_gas': int(future_values[2] - current_row['gas']),
+                'delta_light': float(future_values[3] - current_row['light']),
+                'delta_sound': int(future_values[4] - current_row['sound'])
+            },
+            'comfort': {
+                'level': comfort_labels_map[comfort_prediction],
+                'level_code': int(comfort_prediction),
+                'confidence': round(confidence, 1),
+                'probabilities': comfort_probabilities
+            },
+            'recommendations': recommendations,
+            'data_points_used': len(recent_data)
+        }), 200
+        
+    except Exception as e:
+        print(f"[ML] Prediction error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Prediction failed: {str(e)}'
+        }), 500
+
+
+@app.route('/api/prediction/status', methods=['GET'])
+def get_prediction_status():
+    """Get prediction system status"""
+    return jsonify({
+        'models_loaded': models_loaded,
+        'iot_enabled': iot_enabled,
+        'iot_connected': iot_sensor.is_connected if iot_sensor else False,
+        'db_logging': iot_sensor.db_logging_enabled if iot_sensor else False,
+        'ready': models_loaded and iot_enabled and (iot_sensor.db_logging_enabled if iot_sensor else False)
+    }), 200
+
+
+@app.route('/api/alerts/check', methods=['GET'])
+def check_alerts():
+    """
+    Check for alert conditions based on predictions and IoT data
+    Returns alerts that should be displayed to the user
+    """
+    alerts = []
+    
+    try:
+        # Check if models are ready
+        if not models_loaded or not iot_enabled or not iot_sensor:
+            return jsonify({
+                'success': True,
+                'alerts': [],
+                'message': 'System not ready for alerts'
+            }), 200
+        
+        # Get recent data for prediction
+        recent_data = iot_sensor.get_recent_data(limit=30)
+        
+        if len(recent_data) < 20:
+            return jsonify({
+                'success': True,
+                'alerts': [],
+                'message': 'Insufficient data for prediction'
+            }), 200
+        
+        # Get prediction
+        df = pd.DataFrame(recent_data)
+        forecast_features = ['temperature', 'humidity', 'gas', 'light', 'sound']
+        complementing_features = ['occupancy', 'high_engagement', 'low_engagement']
+        
+        df_engineered = create_time_series_features(df, forecast_features, complementing_features)
+        
+        if len(df_engineered) == 0:
+            return jsonify({
+                'success': True,
+                'alerts': [],
+                'message': 'Feature engineering failed'
+            }), 200
+        
+        X_current = df_engineered[feature_columns].iloc[-1:].values
+        X_current_scaled = gb_scaler.transform(X_current)
+        future_values = gb_model.predict(X_current_scaled)[0]
+        current_row = df.iloc[-1]
+        
+        # Prepare RF input
+        rf_input = pd.DataFrame([{
+            'temperature': current_row['temperature'],
+            'humidity': current_row['humidity'],
+            'gas': current_row['gas'],
+            'light': current_row['light'],
+            'sound': current_row['sound'],
+            'occupancy': current_row['occupancy'],
+            'high_engagement': current_row['high_engagement'],
+            'low_engagement': current_row['low_engagement'],
+            'predicted_temperature': future_values[0],
+            'predicted_humidity': future_values[1],
+            'predicted_gas': future_values[2],
+            'predicted_light': future_values[3],
+            'predicted_sound': future_values[4],
+            'hour': current_row['hour'],
+            'minute': current_row['minute']
+        }])
+        
+        comfort_prediction = rf_model.predict(rf_input)[0]
+        
+        # Generate alerts based on predictions and current conditions
+        
+        # Critical comfort alert
+        if comfort_prediction == 0:  # Critical
+            alerts.append({
+                'id': 'comfort_critical',
+                'type': 'error',
+                'priority': 'high',
+                'title': 'Critical Environment Conditions',
+                'message': 'Classroom environment is predicted to be critical. Immediate action required.'
+            })
+        elif comfort_prediction == 1:  # Poor
+            alerts.append({
+                'id': 'comfort_poor',
+                'type': 'warning',
+                'priority': 'medium',
+                'title': 'Poor Environment Conditions',
+                'message': 'Classroom environment is below optimal. Consider adjustments.'
+            })
+        
+        # Temperature alerts
+        if future_values[0] > 26:
+            alerts.append({
+                'id': 'temp_high',
+                'type': 'warning',
+                'priority': 'medium',
+                'title': 'High Temperature Alert',
+                'message': f'Temperature predicted to reach {future_values[0]:.1f}°C. Consider cooling.'
+            })
+        elif future_values[0] < 20:
+            alerts.append({
+                'id': 'temp_low',
+                'type': 'warning',
+                'priority': 'low',
+                'title': 'Low Temperature Alert',
+                'message': f'Temperature predicted to drop to {future_values[0]:.1f}°C. Reduce cooling.'
+            })
+        
+        # CO2/Gas alerts
+        if future_values[2] > 1000:
+            alerts.append({
+                'id': 'co2_critical',
+                'type': 'error',
+                'priority': 'high',
+                'title': 'High CO₂ Levels',
+                'message': f'CO₂ levels predicted to reach {int(future_values[2])} ppm. Ventilation urgently needed.'
+            })
+        elif future_values[2] > 800:
+            alerts.append({
+                'id': 'co2_warning',
+                'type': 'warning',
+                'priority': 'medium',
+                'title': 'Rising CO₂ Levels',
+                'message': f'CO₂ levels predicted to reach {int(future_values[2])} ppm. Consider ventilation.'
+            })
+        
+        # Humidity alerts
+        if future_values[1] < 30:
+            alerts.append({
+                'id': 'humidity_low',
+                'type': 'info',
+                'priority': 'low',
+                'title': 'Low Humidity',
+                'message': f'Humidity predicted to drop to {future_values[1]:.1f}%. Consider humidifier.'
+            })
+        elif future_values[1] > 60:
+            alerts.append({
+                'id': 'humidity_high',
+                'type': 'warning',
+                'priority': 'medium',
+                'title': 'High Humidity',
+                'message': f'Humidity predicted to reach {future_values[1]:.1f}%. Ventilation recommended.'
+            })
+        
+        # Light alerts
+        if future_values[3] < 100:
+            alerts.append({
+                'id': 'light_low',
+                'type': 'info',
+                'priority': 'low',
+                'title': 'Low Lighting',
+                'message': f'Light level predicted at {int(future_values[3])} lux. Increase lighting.'
+            })
+        
+        # Engagement alerts
+        if current_row['low_engagement'] > current_row['high_engagement'] and current_row['occupancy'] > 0:
+            engagement_ratio = current_row['low_engagement'] / (current_row['high_engagement'] + current_row['low_engagement'] + 1) * 100
+            alerts.append({
+                'id': 'engagement_low',
+                'type': 'warning',
+                'priority': 'medium',
+                'title': 'Low Student Engagement',
+                'message': f'{engagement_ratio:.0f}% of students showing low engagement. Consider intervention.'
+            })
+        
+        return jsonify({
+            'success': True,
+            'alerts': alerts,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        print(f"[Alerts] Error checking alerts: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'alerts': []
+        }), 200  # Return 200 to prevent frontend errors
+
 
 # =========================
 # Error Handlers

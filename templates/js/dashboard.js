@@ -44,6 +44,65 @@ async function fetchDashboardStats() {
     
     // Fetch IoT sensor data for Environment Monitor
     fetchIoTEnvironmentData();
+    
+    // Fetch environment prediction data
+    fetchEnvironmentPrediction();
+}
+
+// Fetch environment prediction from ML model
+async function fetchEnvironmentPrediction() {
+    try {
+        const response = await fetch('/api/prediction/forecast');
+        const result = await response.json();
+        
+        if (result.success && result.comfort) {
+            updateEnvironmentStatCard(result.comfort);
+        } else {
+            // Show waiting state if not enough data
+            const comfortLevelEl = document.getElementById('envComfortLevel');
+            const comfortStatusEl = document.getElementById('envComfortStatus');
+            
+            if (comfortLevelEl) {
+                comfortLevelEl.textContent = '--';
+            }
+            if (comfortStatusEl) {
+                comfortStatusEl.className = 'stat-change neutral';
+                comfortStatusEl.innerHTML = '<i data-lucide="info"></i><span>Waiting for data...</span>';
+                lucide.createIcons();
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching environment prediction:', error);
+    }
+}
+
+// Update Environment stat card with ML prediction
+function updateEnvironmentStatCard(comfortData) {
+    const comfortLevelEl = document.getElementById('envComfortLevel');
+    const comfortStatusEl = document.getElementById('envComfortStatus');
+    
+    if (!comfortLevelEl || !comfortStatusEl) return;
+    
+    // Update comfort level text
+    comfortLevelEl.textContent = comfortData.level;
+    
+    // Update status with confidence and styling
+    let statusClass = 'stat-change neutral';
+    let iconName = 'info';
+    
+    if (comfortData.level === 'Optimal') {
+        statusClass = 'stat-change positive';
+        iconName = 'check-circle';
+    } else if (comfortData.level === 'Critical' || comfortData.level === 'Poor') {
+        statusClass = 'stat-change negative';
+        iconName = 'alert-triangle';
+    }
+    
+    comfortStatusEl.className = statusClass;
+    comfortStatusEl.innerHTML = `<i data-lucide="${iconName}"></i><span>${Math.round(comfortData.confidence)}% confidence</span>`;
+    
+    // Reinitialize icons
+    lucide.createIcons();
 }
 
 // Fetch and update IoT environment sensor data
@@ -54,71 +113,10 @@ async function fetchIoTEnvironmentData() {
         
         if (result.success && result.data) {
             updateEnvironmentMonitor(result.data);
-            updateEnvironmentScore(result.data);
-        } else {
-            // No IoT data - update UI to show waiting state
-            updateEnvironmentScoreNoData();
         }
     } catch (error) {
         console.error('Error fetching IoT environment data:', error);
-        updateEnvironmentScoreNoData();
     }
-}
-
-// Update Comfort Level card with real IoT data
-function updateEnvironmentScore(iotData) {
-    const comfortLevelEl = document.getElementById('comfortLevel');
-    const comfortStatusEl = document.getElementById('comfortStatus');
-    
-    if (!comfortLevelEl || !comfortStatusEl) return;
-    
-    const score = iotData.environmental_score || 0;
-    
-    // Determine comfort level text based on score (matching Random Forest classification)
-    let comfortText = '';
-    let statusText = '';
-    let statusClass = '';
-    let iconName = '';
-    
-    if (score >= 80) {
-        comfortText = 'Optimal';
-        statusText = 'Excellent conditions';
-        statusClass = 'positive';
-        iconName = 'check-circle';
-    } else if (score >= 60) {
-        comfortText = 'Acceptable';
-        statusText = 'Good conditions';
-        statusClass = 'positive';
-        iconName = 'check-circle';
-    } else if (score >= 40) {
-        comfortText = 'Poor';
-        statusText = 'Fair conditions';
-        statusClass = 'neutral';
-        iconName = 'alert-circle';
-    } else {
-        comfortText = 'Critical';
-        statusText = 'Poor conditions';
-        statusClass = 'negative';
-        iconName = 'alert-triangle';
-    }
-    
-    comfortLevelEl.textContent = comfortText;
-    comfortStatusEl.className = `stat-change ${statusClass}`;
-    comfortStatusEl.innerHTML = `<i data-lucide="${iconName}"></i><span>${statusText}</span>`;
-    lucide.createIcons();
-}
-
-// Update Comfort Level when no IoT data available
-function updateEnvironmentScoreNoData() {
-    const comfortLevelEl = document.getElementById('comfortLevel');
-    const comfortStatusEl = document.getElementById('comfortStatus');
-    
-    if (!comfortLevelEl || !comfortStatusEl) return;
-    
-    comfortLevelEl.textContent = '--';
-    comfortStatusEl.className = 'stat-change neutral';
-    comfortStatusEl.innerHTML = '<i data-lucide="info"></i><span>No sensor data</span>';
-    lucide.createIcons();
 }
 
 // Update Environment Monitor with IoT sensor data
@@ -261,15 +259,15 @@ function loadDashboard() {
 
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Comfort Level</span>
+                    <span class="stat-label">Environment</span>
                     <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i data-lucide="thermometer"></i>
                     </div>
                 </div>
-                <div class="stat-value" style="font-size: 24px;" id="comfortLevel">--</div>
-                <div class="stat-change" id="comfortStatus">
+                <div class="stat-value" style="font-size: 24px;" id="envComfortLevel">--</div>
+                <div class="stat-change neutral" id="envComfortStatus">
                     <i data-lucide="info"></i>
-                    <span>Waiting for sensor data</span>
+                    <span>Loading...</span>
                 </div>
             </div>
         </div>
@@ -292,19 +290,19 @@ function loadDashboard() {
                 </div>
             </div>
 
-            <!-- Gradient Boosting Forecasting -->
+            <!-- Environmental Forecasting -->
             <div class="card card-half">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">Gradient Boosting Forecast</h3>
-                        <p class="card-subtitle">Next timestep prediction using feature engineering</p>
+                        <h3 class="card-title">Environmental Forecasting</h3>
+                        <p class="card-subtitle">Gradient Boosting predictions for classroom conditions</p>
                     </div>
                     <button class="card-action">
                         <i data-lucide="trending-up"></i>
                     </button>
                 </div>
                 <div class="chart-container">
-                    <canvas id="forecastChart"></canvas>
+                    <canvas id="forecastingChart"></canvas>
                 </div>
             </div>
 
@@ -403,7 +401,7 @@ function loadDashboard() {
     lucide.createIcons();
     // Initialize charts
     initEngagementChart();
-    initForecastChart();
+    initForecastingChart();
     initEmotionChart();
 
     // Initialize camera button
@@ -422,6 +420,9 @@ function loadDashboard() {
     // Update IoT environment data every 10 seconds
     setInterval(fetchIoTEnvironmentData, 10000);
     
+    // Update environment prediction every 15 seconds (less frequent due to computation)
+    setInterval(fetchEnvironmentPrediction, 15000);
+    
     // Update emotion data every 2 seconds when camera is active
     setInterval(() => {
         // Check both local variable and localStorage for camera state
@@ -430,7 +431,70 @@ function loadDashboard() {
             fetchDashboardEmotionData();
         }
     }, 2000);
+    
+    // Check for alerts every 1 minute without duplicating
+    startAlertChecker();
 }
+
+// =========================
+// Alert Notification System
+// =========================
+
+let lastAlertIds = new Set();  // Track last displayed alert IDs
+let alertCheckInterval = null;
+
+function startAlertChecker() {
+    // Clear any existing interval
+    if (alertCheckInterval) {
+        clearInterval(alertCheckInterval);
+    }
+    
+    // Check immediately on start
+    checkAndShowAlerts();
+    
+    // Check every 60 seconds (1 minute)
+    alertCheckInterval = setInterval(() => {
+        checkAndShowAlerts();
+    }, 60000);  // 60000ms = 1 minute
+    
+    console.log('[Alerts] Started alert checker (1 minute interval)');
+}
+
+async function checkAndShowAlerts() {
+    try {
+        const response = await fetch('/api/alerts/check');
+        const result = await response.json();
+        
+        if (result.success && result.alerts && result.alerts.length > 0) {
+            // Get current alert IDs
+            const currentAlertIds = new Set(result.alerts.map(alert => alert.id));
+            
+            // Only show new alerts that weren't in the last check
+            const newAlerts = result.alerts.filter(alert => !lastAlertIds.has(alert.id));
+            
+            // Display new alerts
+            newAlerts.forEach(alert => {
+                // Map alert type to notification type
+                const notificationType = alert.type === 'error' ? 'error' : 
+                                       alert.type === 'warning' ? 'warning' : 'info';
+                
+                // Show notification (5 second duration for alerts)
+                showNotification(alert.title, alert.message, notificationType, 5000);
+            });
+            
+            // Update last alert IDs - only keep alerts that still exist
+            lastAlertIds = currentAlertIds;
+            
+            if (newAlerts.length > 0) {
+                console.log(`[Alerts] Displayed ${newAlerts.length} new alert(s)`);
+            }
+        } else {
+            // No alerts - clear the tracking set
+            lastAlertIds.clear();
+        }
+    } catch (error) {
+        console.error('[Alerts] Error checking alerts:', error);
+    }
 
 // Fetch emotion data for dashboard
 async function fetchDashboardEmotionData() {
@@ -584,32 +648,55 @@ function updateEngagementLevelChart() {
     engagementLevelChart.update('none');
 }
 
-// Initialize Gradient Boosting Forecast Chart
-let forecastChart = null;
+// Initialize Forecasting Chart
+let forecastingChart = null;
 let forecastHistory = [];
 
-function initForecastChart() {
-    const ctx = document.getElementById('forecastChart');
+function initForecastingChart() {
+    const ctx = document.getElementById('forecastingChart');
     if (!ctx) return;
 
-    forecastChart = new Chart(ctx, {
-        type: 'bar',
+    // Initialize with empty data
+    const labels = ['Now', '+1min', '+2min', '+3min', '+4min', '+5min'];
+
+    forecastingChart = new Chart(ctx, {
+        type: 'line',
         data: {
-            labels: ['Temperature (°C)', 'Humidity (%)', 'CO₂ (ppm)', 'Light (lux)', 'Sound'],
+            labels: labels,
             datasets: [
                 {
-                    label: 'Current',
-                    data: [0, 0, 0, 0, 0],
-                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                    borderColor: '#3b82f6',
-                    borderWidth: 2
+                    label: 'Temperature (°C)',
+                    data: Array(6).fill(null),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.4,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    yAxisID: 'y'
                 },
                 {
-                    label: 'Predicted (Next)',
-                    data: [0, 0, 0, 0, 0],
-                    backgroundColor: 'rgba(245, 158, 11, 0.7)',
-                    borderColor: '#f59e0b',
-                    borderWidth: 2
+                    label: 'Humidity (%)',
+                    data: Array(6).fill(null),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'CO₂ (ppm)',
+                    data: Array(6).fill(null),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    yAxisID: 'y1',
+                    hidden: true  // Hide by default (different scale)
                 }
             ]
         },
@@ -623,40 +710,52 @@ function initForecastChart() {
                         usePointStyle: true,
                         padding: 15,
                         font: {
-                            size: 13,
+                            size: 11,
                             weight: 500
                         }
                     }
                 },
                 tooltip: {
+                    mode: 'index',
+                    intersect: false,
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
                     padding: 12,
                     borderRadius: 8,
                     titleFont: {
-                        size: 14,
+                        size: 13,
                         weight: 600
                     },
                     bodyFont: {
-                        size: 13
-                    },
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += context.parsed.y.toFixed(1);
-                            return label;
-                        }
+                        size: 12
                     }
                 }
             },
             scales: {
                 y: {
-                    beginAtZero: true,
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Temp (°C) / Humidity (%)',
+                        font: { size: 11 }
+                    },
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)',
                         drawBorder: false
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'CO₂ (ppm)',
+                        font: { size: 11 }
+                    },
+                    grid: {
+                        drawOnChartArea: false
                     }
                 },
                 x: {
@@ -664,64 +763,71 @@ function initForecastChart() {
                         display: false
                     }
                 }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
             }
         }
     });
     
-    // Start updating forecast every 15 seconds
-    setInterval(updateForecastChart, 15000);
+    // Start updating forecast data every 15 seconds
+    setInterval(updateForecastingChart, 15000);
     // Initial update
-    updateForecastChart();
+    updateForecastingChart();
 }
 
-// Update forecast chart with Gradient Boosting predictions
-async function updateForecastChart() {
-    if (!forecastChart) return;
+// Update forecasting chart with ML predictions
+async function updateForecastingChart() {
+    if (!forecastingChart) return;
     
     try {
-        // Call the gradient boosting forecast API
-        const response = await fetch('/api/forecast/gradient-boosting', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
+        const response = await fetch('/api/prediction/forecast');
         const result = await response.json();
         
-        if (result.success && result.forecast) {
-            const current = result.forecast.current;
-            const predicted = result.forecast.predicted;
+        if (result.success && result.current && result.predicted) {
+            const current = result.current;
+            const predicted = result.predicted;
             
-            // Normalize values for better visualization
-            // Temperature: display as-is
-            // Humidity: display as-is
-            // CO2/Gas: scale to 0-1000 range
-            // Light: scale to 0-500 range
-            // Sound: scale to 0-100 range
-            
-            forecastChart.data.datasets[0].data = [
+            // Simple projection: current value, then predicted (assuming 1-minute ahead prediction)
+            // We'll show current + 5 projected points based on the delta
+            const tempData = [
                 current.temperature,
+                current.temperature + predicted.delta_temperature * 0.2,
+                current.temperature + predicted.delta_temperature * 0.4,
+                current.temperature + predicted.delta_temperature * 0.6,
+                current.temperature + predicted.delta_temperature * 0.8,
+                predicted.temperature
+            ];
+            
+            const humidityData = [
                 current.humidity,
-                Math.min(current.gas, 1000) / 10,  // Scale CO2 to fit chart
-                Math.min(current.light, 1000) / 10,  // Scale light to fit chart
-                Math.min(current.sound, 100)
+                current.humidity + predicted.delta_humidity * 0.2,
+                current.humidity + predicted.delta_humidity * 0.4,
+                current.humidity + predicted.delta_humidity * 0.6,
+                current.humidity + predicted.delta_humidity * 0.8,
+                predicted.humidity
             ];
             
-            forecastChart.data.datasets[1].data = [
-                predicted.temperature,
-                predicted.humidity,
-                Math.min(predicted.gas, 1000) / 10,
-                Math.min(predicted.light, 1000) / 10,
-                Math.min(predicted.sound, 100)
+            const co2Data = [
+                current.gas,
+                current.gas + predicted.delta_gas * 0.2,
+                current.gas + predicted.delta_gas * 0.4,
+                current.gas + predicted.delta_gas * 0.6,
+                current.gas + predicted.delta_gas * 0.8,
+                predicted.gas
             ];
             
-            forecastChart.update('none');
+            // Update chart data
+            forecastingChart.data.datasets[0].data = tempData.map(v => v.toFixed(1));
+            forecastingChart.data.datasets[1].data = humidityData.map(v => v.toFixed(1));
+            forecastingChart.data.datasets[2].data = co2Data.map(v => Math.round(v));
             
-            console.log('Forecast updated:', result.forecast.changes);
+            forecastingChart.update('none');
         }
     } catch (error) {
-        console.error('Error updating forecast:', error);
+        console.error('Error updating forecasting chart:', error);
     }
 }
 

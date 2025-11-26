@@ -34,159 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNavigationByRole(user.role);
     
     initDarkMode();
-    initNotificationButton();
     initEventListeners();
     
     // Load dashboard by default
     loadDashboard();
 });
-
-// Notification Button Functions
-function initNotificationButton() {
-    const notificationBtn = document.getElementById('notificationBtn');
-    
-    if (notificationBtn) {
-        notificationBtn.addEventListener('click', () => {
-            toggleNotificationPanel();
-        });
-    }
-    
-    // Update notification badge periodically
-    updateNotificationBadge();
-    setInterval(updateNotificationBadge, 30000); // Check every 30 seconds
-}
-
-function toggleNotificationPanel() {
-    let panel = document.getElementById('notificationPanel');
-    
-    if (!panel) {
-        // Create notification panel
-        panel = document.createElement('div');
-        panel.id = 'notificationPanel';
-        panel.className = 'notification-panel';
-        panel.innerHTML = `
-            <div class="notification-panel-header">
-                <h3>Notifications</h3>
-                <button class="notification-close" onclick="closeNotificationPanel()">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-            <div class="notification-panel-body" id="notificationPanelBody">
-                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
-                    <i data-lucide="loader" style="width: 32px; height: 32px; margin-bottom: 12px;"></i>
-                    <p>Loading notifications...</p>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(panel);
-        lucide.createIcons();
-        
-        // Load notifications
-        loadNotificationsPanel();
-    } else {
-        // Toggle visibility
-        if (panel.style.display === 'block') {
-            panel.style.display = 'none';
-        } else {
-            panel.style.display = 'block';
-            loadNotificationsPanel();
-        }
-    }
-}
-
-function closeNotificationPanel() {
-    const panel = document.getElementById('notificationPanel');
-    if (panel) {
-        panel.style.display = 'none';
-    }
-}
-
-async function loadNotificationsPanel() {
-    const panelBody = document.getElementById('notificationPanelBody');
-    if (!panelBody) return;
-    
-    try {
-        const response = await fetch('/api/alerts');
-        const alerts = await response.json();
-        
-        if (!Array.isArray(alerts) || alerts.length === 0) {
-            panelBody.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
-                    <i data-lucide="check-circle" style="width: 48px; height: 48px; margin-bottom: 12px; color: #10b981;"></i>
-                    <p style="font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">All Clear!</p>
-                    <p style="font-size: 14px;">No alerts at the moment</p>
-                </div>
-            `;
-            lucide.createIcons();
-            return;
-        }
-        
-        // Display alerts
-        panelBody.innerHTML = alerts.map(alert => `
-            <div class="notification-item notification-${alert.type}">
-                <div class="notification-item-icon">
-                    <i data-lucide="${getAlertIconForPanel(alert.type)}"></i>
-                </div>
-                <div class="notification-item-content">
-                    <div class="notification-item-title">${alert.title}</div>
-                    <div class="notification-item-message">${alert.message}</div>
-                    <div class="notification-item-time">${formatAlertTimeForPanel(alert.timestamp)}</div>
-                </div>
-            </div>
-        `).join('');
-        
-        lucide.createIcons();
-    } catch (error) {
-        console.error('Error loading notifications:', error);
-        panelBody.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
-                <i data-lucide="alert-circle" style="width: 48px; height: 48px; margin-bottom: 12px; color: #ef4444;"></i>
-                <p>Failed to load notifications</p>
-            </div>
-        `;
-        lucide.createIcons();
-    }
-}
-
-async function updateNotificationBadge() {
-    try {
-        const response = await fetch('/api/alerts');
-        const alerts = await response.json();
-        
-        const badge = document.getElementById('notificationBadge');
-        if (badge) {
-            if (Array.isArray(alerts) && alerts.length > 0) {
-                badge.style.display = 'block';
-            } else {
-                badge.style.display = 'none';
-            }
-        }
-    } catch (error) {
-        console.error('Error updating notification badge:', error);
-    }
-}
-
-function getAlertIconForPanel(type) {
-    switch (type) {
-        case 'warning': return 'alert-triangle';
-        case 'error': return 'alert-circle';
-        case 'success': return 'check-circle';
-        case 'info': return 'info';
-        default: return 'bell';
-    }
-}
-
-function formatAlertTimeForPanel(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-}
 
 // Update user profile display
 function updateUserProfile(user) {
@@ -406,6 +258,20 @@ function initEventListeners() {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             handleLogout();
+        });
+    }
+    
+    // Notification button
+    const notificationBtn = document.getElementById('notificationBtn');
+    if (notificationBtn) {
+        notificationBtn.addEventListener('click', () => {
+            const notificationContainer = document.getElementById('notificationContainer');
+            if (notificationContainer && notificationContainer.children.length > 0) {
+                // Scroll to notification container
+                notificationContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                showNotification('No Notifications', 'You have no active notifications at this time.', 'info', 3000);
+            }
         });
     }
 }
@@ -994,7 +860,7 @@ function loadAnalytics() {
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Angry</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Disgust</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Fear</th>
-                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Env Score</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Comfort Level</th>
                             </tr>
                         </thead>
                         <tbody id="iotTableBody">
@@ -1026,9 +892,9 @@ async function initAnalytics() {
         // Update stat cards with real data
         updateAnalyticsStats(summary);
         
-        // Fetch engagement trends
-        const days = parseInt(document.getElementById('analyticsDateRange')?.value || 30);
-        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
+        // Fetch engagement trends (last 30 minutes)
+        const minutes = 30;
+        const trendsResponse = await fetch(`/api/analytics/engagement-trends?minutes=${minutes}`);
         const trendsData = await trendsResponse.json();
         
         // Initialize all charts with real data
@@ -1056,13 +922,8 @@ async function initAnalytics() {
             console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
-        const dateRangeSelect = document.getElementById('analyticsDateRange');
-        if (dateRangeSelect) {
-            dateRangeSelect.addEventListener('change', async (e) => {
-                const newDays = parseInt(e.target.value);
-                await refreshAnalytics(newDays);
-            });
-        }
+        // Auto-refresh analytics every 30 seconds
+        setInterval(() => refreshAnalytics(30), 30000);
         
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
@@ -1149,10 +1010,10 @@ function updateAnalyticsStats(summary) {
     }
 }
 
-// Refresh analytics with new date range
-async function refreshAnalytics(days) {
+// Refresh analytics with 30-minute window
+async function refreshAnalytics(minutes = 30) {
     try {
-        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
+        const trendsResponse = await fetch(`/api/analytics/engagement-trends?minutes=${minutes}`);
         const trendsData = await trendsResponse.json();
         
         updateAnalyticsCharts(trendsData.data);
@@ -1545,13 +1406,15 @@ async function populateIoTTable() {
             const timeStr = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const dateStr = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             
-            const getScoreColor = (score) => {
-                if (score >= 80) return '#10b981';
-                if (score >= 60) return '#f59e0b';
-                return '#ef4444';
+            const getComfortLevel = (score) => {
+                if (score >= 80) return { level: 'Optimal', color: '#10b981' };
+                if (score >= 60) return { level: 'Acceptable', color: '#f59e0b' };
+                if (score >= 40) return { level: 'Poor', color: '#ef4444' };
+                return { level: 'Critical', color: '#dc2626' };
             };
             
             const envScore = row.environmental_score || 0;
+            const comfort = getComfortLevel(envScore);
             const occupancy = row.occupancy !== undefined ? row.occupancy : 'N/A';
             // Display emotion COUNTS (not percentages) - each is an integer representing number of faces
             const happy = row.happy !== undefined ? row.happy : 'N/A';
@@ -1579,7 +1442,7 @@ async function populateIoTTable() {
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f97316;">${disgust}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #f59e0b;">${fear}</td>
                     <td style="padding: 10px; text-align: center;">
-                        <span class="badge" style="background: ${getScoreColor(envScore)};">${envScore.toFixed(1)}</span>
+                        <span class="badge" style="background: ${comfort.color};">${comfort.level}</span>
                     </td>
                 </tr>
             `;
