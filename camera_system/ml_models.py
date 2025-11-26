@@ -190,14 +190,15 @@ class EnvironmentalPredictor:
                 for reading in sequence_data
             ])
             
-            # Normalize with scaler
-            sequence_scaled = self.scaler.transform(sequence_array)
+            # Flatten to 1D FIRST (before scaling)
+            # Shape: (sequence_length * forecast_features,) = (4 * 5,) = (20,)
+            sequence_flat = sequence_array.flatten().reshape(1, -1)
             
-            # Flatten to 1D for GB model (expects flattened sequence)
-            sequence_flat = sequence_scaled.flatten().reshape(1, -1)
+            # Normalize with scaler (expects flattened sequence)
+            sequence_scaled = self.scaler.transform(sequence_flat)
             
             # Predict next values
-            future_scaled = self.gb_model.predict(sequence_flat)
+            future_scaled = self.gb_model.predict(sequence_scaled)
             
             # Inverse transform to get real values
             future_values = self.scaler.inverse_transform(future_scaled.reshape(1, -1))[0]
