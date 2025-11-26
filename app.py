@@ -946,33 +946,53 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends - Real-time data only (no database)"""
+    """Get engagement trends - Real-time data (no database required)"""
+    # Get date range from query params
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     days = request.args.get('days', default=7, type=int)
     
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     high_engaged = current_emotion_stats.get('high_engagement', 0)
     low_engaged = current_emotion_stats.get('low_engagement', 0)
     
+    # Calculate date range
+    if end_date:
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+    else:
+        end = datetime.now()
+    
+    if start_date:
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        days = (end - start).days + 1
+    else:
+        start = end - timedelta(days=days-1)
+    
     trends = {
-        'period': 'Current session (real-time)',
+        'period': f'{start.strftime("%Y-%m-%d")} to {end.strftime("%Y-%m-%d")} (real-time)',
         'data': [],
         'source': 'realtime'
     }
     
-    for i in range(days - 1, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+    # Generate data for each day in range
+    for i in range(days):
+        current_date = start + timedelta(days=i)
+        date_str = current_date.strftime('%Y-%m-%d')
+        today_str = datetime.now().strftime('%Y-%m-%d')
         
-        if i == 0:
+        # Only show data for today (real-time)
+        if date_str == today_str:
             trends['data'].append({
-                'date': date,
+                'date': date_str,
                 'highlyEngaged': high_engaged,
                 'disengaged': low_engaged,
                 'studentsPresent': current_students,
                 'dataPoints': 1 if current_students > 0 else 0
             })
         else:
+            # Past days - no data (would come from database if enabled)
             trends['data'].append({
-                'date': date,
+                'date': date_str,
                 'highlyEngaged': 0,
                 'disengaged': 0,
                 'studentsPresent': 0,
@@ -1064,25 +1084,58 @@ def export_analytics():
 
 @app.route('/api/analytics/presence-trends', methods=['GET'])
 def get_presence_trends():
-    """Get classroom presence trends - Real-time data only (no database)"""
+    """Get classroom presence trends - Real-time data (no database required)"""
+    # Get date range from query params
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     days = request.args.get('days', default=7, type=int)
+    
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     
+    # Calculate date range
+    if end_date:
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+    else:
+        end = datetime.now()
+    
+    if start_date:
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        days = (end - start).days + 1
+    else:
+        start = end - timedelta(days=days-1)
+    
     result = {
-        'period': 'Current session (real-time)',
+        'period': f'{start.strftime("%Y-%m-%d")} to {end.strftime("%Y-%m-%d")} (real-time)',
         'data': [],
         'source': 'realtime'
     }
     
-    for i in range(days - 1, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-        result['data'].append({
-            'date': date,
-            'avgStudents': current_students if i == 0 else 0,
-            'maxStudents': current_students if i == 0 else 0,
-            'minStudents': current_students if i == 0 else 0,
-            'dataPoints': 1 if i == 0 and current_students > 0 else 0
-        })
+    # Generate data for each day in range
+    for i in range(days):
+        current_date = start + timedelta(days=i)
+        date_str = current_date.strftime('%Y-%m-%d')
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # Only show data for today (real-time)
+        if date_str == today_str:
+            result['data'].append({
+                'date': date_str,
+                'avgStudents': current_students,
+                'maxStudents': current_students,
+                'minStudents': current_students,
+                'studentsPresent': current_students,
+                'dataPoints': 1 if current_students > 0 else 0
+            })
+        else:
+            # Past days - no data (would come from database if enabled)
+            result['data'].append({
+                'date': date_str,
+                'avgStudents': 0,
+                'maxStudents': 0,
+                'minStudents': 0,
+                'studentsPresent': 0,
+                'dataPoints': 0
+            })
     
     return jsonify(result), 200
 

@@ -780,7 +780,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Engagement Trends</h3>
-                        <p class="card-subtitle">High vs Low engagement tracking from database</p>
+                        <p class="card-subtitle">Real-time high vs low engagement tracking (today's data)</p>
                     </div>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <div style="display: flex; gap: 8px; align-items: center;">
@@ -807,7 +807,7 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Classroom Presence</h3>
-                        <p class="card-subtitle">Students detected over time</p>
+                        <p class="card-subtitle">Real-time student detection (today's data)</p>
                     </div>
                 </div>
                 <div class="chart-container">
