@@ -810,41 +810,60 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends over time - Track high/low engagement from system start"""
+    """Get engagement trends over time - Track high/low engagement from database"""
     days = request.args.get('days', default=7, type=int)
+    start_date = request.args.get('start_date', default=None, type=str)
+    end_date = request.args.get('end_date', default=None, type=str)
     
-    # Get current engagement data from emotion detector
-    emotion_data = current_emotion_stats.get('engagement_summary', {})
-    high_engagement = emotion_data.get('high_engagement', 0)
-    low_engagement = emotion_data.get('low_engagement', 0)
-    current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+    # Get analytics database
+    analytics_db = get_analytics_db() if get_analytics_db else None
     
-    # Build trends data - only show data from system start (today)
-    trends = {
-        'period': f'System started today',
-        'data': []
-    }
-    
-    # Only populate today's data (index 0 is today)
-    for i in range(days - 1, -1, -1):
-        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+    if analytics_db:
+        # Get data from database
+        trends_data = analytics_db.get_engagement_trends(
+            start_date=start_date,
+            end_date=end_date,
+            days=days
+        )
         
-        if i == 0:  # Today (system running)
-            trends['data'].append({
-                'date': date,
-                'avgEngagement': 0,  # Not used anymore
-                'highlyEngaged': high_engagement,  # Number of students with high engagement
-                'disengaged': low_engagement,  # Number of students with low engagement
-                'studentsPresent': current_students
-            })
-        else:  # Past days (no data before system start)
-            trends['data'].append({
-                'date': date,
-                'avgEngagement': 0,
-                'highlyEngaged': 0,
-                'disengaged': 0,
-                'studentsPresent': 0
-            })
+        trends = {
+            'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
+            'data': trends_data,
+            'source': 'database'
+        }
+    else:
+        # Fallback to current session data only
+        emotion_data = current_emotion_stats.get('engagement_summary', {})
+        high_engagement = emotion_data.get('high_engagement', 0)
+        low_engagement = emotion_data.get('low_engagement', 0)
+        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+        
+        trends = {
+            'period': f'Current session only',
+            'data': [],
+            'source': 'session'
+        }
+        
+        # Only populate today's data
+        for i in range(days - 1, -1, -1):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            
+            if i == 0:  # Today (system running)
+                trends['data'].append({
+                    'date': date,
+                    'highlyEngaged': high_engagement,
+                    'disengaged': low_engagement,
+                    'studentsPresent': current_students,
+                    'dataPoints': 1
+                })
+            else:  # Past days (no data)
+                trends['data'].append({
+                    'date': date,
+                    'highlyEngaged': 0,
+                    'disengaged': 0,
+                    'studentsPresent': 0,
+                    'dataPoints': 0
+                })
     
     return jsonify(trends), 200
 
@@ -929,6 +948,91 @@ def export_analytics():
     }), 200
 
 
+@app.route('/api/analytics/presence-trends', methods=['GET'])
+def get_presence_trends():
+    """Get classroom presence trends from database"""
+    days = request.args.get('days', default=7, type=int)
+    start_date = request.args.get('start_date', default=None, type=str)
+    end_date = request.args.get('end_date', default=None, type=str)
+    
+    # Get analytics database
+    analytics_db = get_analytics_db() if get_analytics_db else None
+    
+    if analytics_db:
+        # Get data from database
+        presence_data = analytics_db.get_presence_trends(
+            start_date=start_date,
+            end_date=end_date,
+            days=days
+        )
+        
+        result = {
+            'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
+            'data': presence_data,
+            'source': 'database'
+        }
+    else:
+        # Fallback to current session data
+        current_students = classroom_data['current_stats'].get('studentsDetected', 0)
+        
+        result = {
+            'period': 'Current session only',
+            'data': [],
+            'source': 'session'
+        }
+        
+        for i in range(days - 1, -1, -1):
+            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+            result['data'].append({
+                'date': date,
+                'avgStudents': current_students if i == 0 else 0,
+                'maxStudents': current_students if i == 0 else 0,
+                'minStudents': current_students if i == 0 else 0,
+                'dataPoints': 1 if i == 0 else 0
+            })
+    
+    return jsonify(result), 200
+
+
+@app.route('/api/analytics/available-dates', methods=['GET'])
+def get_available_dates():
+    """Get list of dates with recorded analytics data"""
+    analytics_db = get_analytics_db() if get_analytics_db else None
+    
+    if analytics_db:
+        dates = analytics_db.get_available_dates()
+        return jsonify({
+            'success': True,
+            'dates': dates,
+            'count': len(dates)
+        }), 200
+    else:
+        # Return only today if database not available
+        return jsonify({
+            'success': True,
+            'dates': [datetime.now().date().isoformat()],
+            'count': 1
+        }), 200
+
+
+@app.route('/api/analytics/stats', methods=['GET'])
+def get_analytics_stats():
+    """Get analytics database statistics"""
+    analytics_db = get_analytics_db() if get_analytics_db else None
+    
+    if analytics_db:
+        stats = analytics_db.get_stats_summary()
+        return jsonify({
+            'success': True,
+            'stats': stats
+        }), 200
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'Analytics database not available'
+        }), 503
+
+
 @app.route('/api/analytics/summary', methods=['GET'])
 def get_analytics_summary():
     """Get analytics summary with real-time data"""
@@ -1004,6 +1108,7 @@ try:
     from camera_system.emotion_detector import EmotionDetector
     from camera_system.iot_sensor import initialize_iot, get_iot_data, get_iot_status, get_iot_alerts
     from camera_system.ml_models import get_environmental_predictor
+    from camera_system.analytics_db import get_analytics_db
     CAMERA_SYSTEM_AVAILABLE = True
     print("✓ Camera system loaded successfully")
 except ImportError as e:
@@ -1017,6 +1122,7 @@ except ImportError as e:
     get_iot_status = None
     get_iot_alerts = None
     get_environmental_predictor = None
+    get_analytics_db = None
 
 # Global camera stream instance and emotion detector
 active_camera_stream = None
@@ -1048,6 +1154,9 @@ def cv_data_sync_worker():
     
     print("[CV Sync] Background worker started - syncing every 10 seconds")
     
+    # Get analytics database
+    analytics_db = get_analytics_db() if get_analytics_db else None
+    
     while cv_data_sync_running:
         try:
             # Only sync if IoT logging is enabled
@@ -1063,6 +1172,16 @@ def cv_data_sync_worker():
                 
                 # Update IoT sensor with CV data (counts, not percentages)
                 iot_sensor.update_cv_data(occupancy, emotion_counts)
+                
+                # Log to analytics database
+                if analytics_db:
+                    analytics_db.log_engagement(
+                        high_engagement=high_engagement,
+                        low_engagement=low_engagement,
+                        students_detected=occupancy,
+                        emotion_counts=emotion_counts
+                    )
+                    analytics_db.log_presence(students_count=occupancy)
                 
                 # Update environmental predictor with current data
                 if environmental_predictor and environmental_predictor.is_loaded:
@@ -1082,7 +1201,7 @@ def cv_data_sync_worker():
                         }
                         environmental_predictor.add_reading(predictor_data)
                 
-                print(f"[CV Sync] Updated IoT with occupancy={occupancy}, high_engagement={high_engagement}, low_engagement={low_engagement}")
+                print(f"[CV Sync] Updated IoT & Analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")

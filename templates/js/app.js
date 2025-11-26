@@ -780,7 +780,21 @@ function loadAnalytics() {
                 <div class="card-header">
                     <div>
                         <h3 class="card-title">Engagement Trends</h3>
-                        <p class="card-subtitle">High vs Low engagement tracking from system start</p>
+                        <p class="card-subtitle">High vs Low engagement tracking from database</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label for="analyticsStartDate" style="font-size: 13px; color: var(--text-secondary);">From:</label>
+                            <input type="date" id="analyticsStartDate" class="date-input" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: var(--bg-primary); color: var(--text-primary);">
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label for="analyticsEndDate" style="font-size: 13px; color: var(--text-secondary);">To:</label>
+                            <input type="date" id="analyticsEndDate" class="date-input" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: var(--bg-primary); color: var(--text-primary);">
+                        </div>
+                        <button id="refreshAnalyticsBtn" class="btn btn-secondary" style="padding: 6px 16px; font-size: 13px;">
+                            <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                            Refresh
+                        </button>
                     </div>
                 </div>
                 <div class="chart-container" style="height: 300px;">
@@ -866,6 +880,23 @@ function loadAnalytics() {
 // Initialize Analytics
 async function initAnalytics() {
     try {
+        // Set default dates (last 7 days to today)
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 6);
+        
+        const startDateInput = document.getElementById('analyticsStartDate');
+        const endDateInput = document.getElementById('analyticsEndDate');
+        
+        if (startDateInput && endDateInput) {
+            startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
+            endDateInput.value = today.toISOString().split('T')[0];
+            
+            // Set max date to today
+            startDateInput.max = today.toISOString().split('T')[0];
+            endDateInput.max = today.toISOString().split('T')[0];
+        }
+        
         // Fetch real analytics summary
         const summaryResponse = await fetch('/api/analytics/summary');
         const summary = await summaryResponse.json();
@@ -877,14 +908,8 @@ async function initAnalytics() {
         // Update stat cards with real data
         updateAnalyticsStats(summary);
         
-        // Fetch engagement trends
-        const days = parseInt(document.getElementById('analyticsDateRange')?.value || 30);
-        const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
-        const trendsData = await trendsResponse.json();
-        
-        // Initialize all charts with real data
-        initAnalyticsEngagementChart(trendsData.data);
-        initAnalyticsPresenceChart(trendsData.data);
+        // Fetch and display initial data
+        await refreshAnalyticsCharts();
         
         // Use emotion history averages instead of real-time data
         if (emotionHistory.success && emotionHistory.average_emotions) {
@@ -907,17 +932,23 @@ async function initAnalytics() {
             console.log('✓ Started continuous IoT data refresh (10 second interval)');
         }
         
-        const dateRangeSelect = document.getElementById('analyticsDateRange');
-        if (dateRangeSelect) {
-            dateRangeSelect.addEventListener('change', async (e) => {
-                const newDays = parseInt(e.target.value);
-                await refreshAnalytics(newDays);
-            });
+        // Add refresh button listener
+        const refreshBtn = document.getElementById('refreshAnalyticsBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', refreshAnalyticsCharts);
+        }
+        
+        // Add date change listeners
+        if (startDateInput) {
+            startDateInput.addEventListener('change', refreshAnalyticsCharts);
+        }
+        if (endDateInput) {
+            endDateInput.addEventListener('change', refreshAnalyticsCharts);
         }
         
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => exportAnalyticsCSV(days, true));
+            exportBtn.addEventListener('click', () => exportAnalyticsCSV(7, true));
         }
         
         // IoT Database Logging Controls
@@ -1001,6 +1032,46 @@ function updateAnalyticsStats(summary) {
 }
 
 // Refresh analytics with new date range
+// Refresh analytics charts with selected date range
+async function refreshAnalyticsCharts() {
+    try {
+        const startDate = document.getElementById('analyticsStartDate')?.value;
+        const endDate = document.getElementById('analyticsEndDate')?.value;
+        
+        if (!startDate || !endDate) {
+            console.warn('Start or end date not selected');
+            return;
+        }
+        
+        // Fetch engagement trends with date range
+        const trendsUrl = `/api/analytics/engagement-trends?start_date=${startDate}&end_date=${endDate}`;
+        const trendsResponse = await fetch(trendsUrl);
+        const trendsData = await trendsResponse.json();
+        
+        // Fetch presence trends with date range
+        const presenceUrl = `/api/analytics/presence-trends?start_date=${startDate}&end_date=${endDate}`;
+        const presenceResponse = await fetch(presenceUrl);
+        const presenceData = await presenceResponse.json();
+        
+        // Update charts with new data
+        if (window.analyticsEngagementChart) {
+            updateAnalyticsEngagementChart(trendsData.data);
+        } else {
+            initAnalyticsEngagementChart(trendsData.data);
+        }
+        
+        if (window.analyticsPresenceChart) {
+            updateAnalyticsPresenceChart(presenceData.data);
+        } else {
+            initAnalyticsPresenceChart(presenceData.data);
+        }
+        
+        console.log(`✓ Analytics refreshed for ${startDate} to ${endDate}`);
+    } catch (error) {
+        console.error('Error refreshing analytics:', error);
+    }
+}
+
 async function refreshAnalytics(days) {
     try {
         const trendsResponse = await fetch(`/api/analytics/engagement-trends?days=${days}`);
@@ -1144,11 +1215,11 @@ function initAnalyticsEngagementChart(data) {
     const ctx = document.getElementById('analyticsEngagementChart');
     if (!ctx) return;
     
-    // Use real-time engagement data from system start
+    // Use real-time engagement data from database
     // Track high engagement vs low engagement over time
     const hasData = data.some(d => (d.highlyEngaged > 0 || d.disengaged > 0));
 
-    new Chart(ctx, {
+    window.analyticsEngagementChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
@@ -1253,18 +1324,17 @@ function initAnalyticsPresenceChart(data) {
     if (!ctx) return;
     
     // Extract students detected data from the API response
-    const hasStudentData = data && data.some(d => d.studentsPresent !== undefined && d.studentsPresent > 0);
-    const currentStudents = hasStudentData ? data[data.length - 1].studentsPresent : 0;
+    const hasStudentData = data && data.some(d => (d.studentsPresent !== undefined && d.studentsPresent > 0) || (d.avgStudents !== undefined && d.avgStudents > 0));
     
-    // Build presence data array - use studentsPresent from API data
+    // Build presence data array - use studentsPresent or avgStudents from API data
     const studentData = data.map((d) => ({
         date: d.date,
-        students: d.studentsPresent || 0
+        students: d.studentsPresent || d.avgStudents || 0
     }));
     
     const hasData = studentData.some(d => d.students > 0);
 
-    new Chart(ctx, {
+    window.analyticsPresenceChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: studentData.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
@@ -1398,6 +1468,50 @@ function initAnalyticsEmotionChart(emotionData = {}) {
             }
         }
     });
+}
+
+// Update engagement chart with new data
+function updateAnalyticsEngagementChart(data) {
+    if (!window.analyticsEngagementChart) return;
+    
+    const hasData = data.some(d => (d.highlyEngaged > 0 || d.disengaged > 0));
+    
+    // Update labels and data
+    window.analyticsEngagementChart.data.labels = data.map(d => 
+        new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    );
+    
+    window.analyticsEngagementChart.data.datasets[0].data = data.map(d => d.highlyEngaged || 0);
+    window.analyticsEngagementChart.data.datasets[1].data = data.map(d => d.disengaged || 0);
+    
+    // Update tooltip enabled state
+    window.analyticsEngagementChart.options.plugins.tooltip.enabled = hasData;
+    
+    window.analyticsEngagementChart.update();
+}
+
+// Update presence chart with new data
+function updateAnalyticsPresenceChart(data) {
+    if (!window.analyticsPresenceChart) return;
+    
+    const studentData = data.map((d) => ({
+        date: d.date,
+        students: d.studentsPresent || d.avgStudents || 0
+    }));
+    
+    const hasData = studentData.some(d => d.students > 0);
+    
+    // Update labels and data
+    window.analyticsPresenceChart.data.labels = studentData.map(d => 
+        new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    );
+    
+    window.analyticsPresenceChart.data.datasets[0].data = studentData.map(d => d.students);
+    
+    // Update tooltip enabled state
+    window.analyticsPresenceChart.options.plugins.tooltip.enabled = hasData;
+    
+    window.analyticsPresenceChart.update();
 }
 
 async function populateIoTTable() {

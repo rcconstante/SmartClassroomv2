@@ -1673,6 +1673,8 @@ function updateLSTMChartSimulation() {
 let notificationContainer = null;
 let notificationQueue = [];
 let activeNotifications = [];
+let notificationHistory = []; // Store notification history for the panel
+let unreadCount = 0;
 
 function initNotificationSystem() {
     // Create notification container if it doesn't exist
@@ -1683,6 +1685,121 @@ function initNotificationSystem() {
         notificationContainer.style.cssText = 'pointer-events: none;';
         document.body.appendChild(notificationContainer);
     }
+    
+    // Initialize notification bell
+    initNotificationBell();
+}
+
+// Initialize notification bell functionality
+function initNotificationBell() {
+    const bellButton = document.getElementById('notificationBell');
+    const notificationPanel = document.getElementById('notificationPanel');
+    const clearAllBtn = document.getElementById('clearAllNotifications');
+    
+    if (!bellButton || !notificationPanel) return;
+    
+    // Toggle notification panel
+    bellButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = notificationPanel.style.display === 'block';
+        notificationPanel.style.display = isVisible ? 'none' : 'block';
+        
+        // Mark all as read when panel is opened
+        if (!isVisible) {
+            markAllAsRead();
+        }
+    });
+    
+    // Clear all notifications
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => {
+            notificationHistory = [];
+            unreadCount = 0;
+            updateNotificationBadge();
+            renderNotificationPanel();
+        });
+    }
+    
+    // Close panel when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!notificationPanel.contains(e.target) && e.target !== bellButton) {
+            notificationPanel.style.display = 'none';
+        }
+    });
+}
+
+// Update notification badge count
+function updateNotificationBadge() {
+    const badge = document.getElementById('notificationBadge');
+    if (!badge) return;
+    
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// Mark all notifications as read
+function markAllAsRead() {
+    notificationHistory.forEach(notif => notif.unread = false);
+    unreadCount = 0;
+    updateNotificationBadge();
+    renderNotificationPanel();
+}
+
+// Render notification panel
+function renderNotificationPanel() {
+    const panelBody = document.getElementById('notificationPanelBody');
+    if (!panelBody) return;
+    
+    if (notificationHistory.length === 0) {
+        panelBody.innerHTML = `
+            <div class="notification-empty">
+                <i data-lucide="bell-off" style="width: 48px; height: 48px; opacity: 0.3;"></i>
+                <p>No notifications yet</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+    
+    panelBody.innerHTML = notificationHistory.map(notif => {
+        const timeAgo = getTimeAgo(notif.timestamp);
+        const unreadClass = notif.unread ? 'unread' : '';
+        
+        return `
+            <div class="notification-item-panel ${unreadClass}" style="position: relative;">
+                <div class="notification-item-header">
+                    <span class="notification-icon">${notif.icon}</span>
+                    <div class="notification-content">
+                        <div class="notification-title">${notif.title}</div>
+                        <div class="notification-message">${notif.message}</div>
+                        <div class="notification-time">${timeAgo}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    lucide.createIcons();
+}
+
+// Get time ago string
+function getTimeAgo(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (seconds < 60) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
 }
 
 // Show notifications for prediction recommendations
@@ -1730,6 +1847,42 @@ function getRecommendationIcon(recommendation) {
 function showNotification({ type, title, message, duration = 10000, severity = 'info' }) {
     if (!notificationContainer) initNotificationSystem();
     
+    // Determine icon based on severity and content
+    let icon = '🔔';
+    if (title.includes('🚨')) icon = '🚨';
+    else if (title.includes('⚠️')) icon = '⚠️';
+    else if (title.includes('🌡️')) icon = '🌡️';
+    else if (title.includes('💧')) icon = '💧';
+    else if (title.includes('🌬️')) icon = '🌬️';
+    else if (title.includes('💡')) icon = '💡';
+    else if (title.includes('🔊')) icon = '🔊';
+    else if (severity === 'error') icon = '🚨';
+    else if (severity === 'warning') icon = '⚠️';
+    else if (severity === 'success') icon = '✅';
+    else if (severity === 'info') icon = 'ℹ️';
+    
+    // Add to notification history
+    notificationHistory.unshift({
+        id: Date.now(),
+        title: title.replace(/[🚨⚠️🌡️💧🌬️💡🔊ℹ️✅]/g, '').trim(),
+        message: message,
+        icon: icon,
+        severity: severity,
+        timestamp: Date.now(),
+        unread: true
+    });
+    
+    // Keep only last 50 notifications
+    if (notificationHistory.length > 50) {
+        notificationHistory = notificationHistory.slice(0, 50);
+    }
+    
+    // Increment unread count
+    unreadCount++;
+    updateNotificationBadge();
+    renderNotificationPanel();
+    
+    // Show toast notification
     const notification = document.createElement('div');
     notification.className = `notification-item transform transition-all duration-300 ease-in-out`;
     notification.style.cssText = 'pointer-events: auto; opacity: 0; transform: translateX(100px);';
@@ -1748,7 +1901,7 @@ function showNotification({ type, title, message, duration = 10000, severity = '
         <div class="${config.bg} ${config.border} border-l-4 text-white p-4 rounded-lg shadow-lg max-w-md">
             <div class="flex items-start">
                 <div class="flex-shrink-0">
-                    <span class="text-2xl">${config.icon}</span>
+                    <span class="text-2xl">${icon}</span>
                 </div>
                 <div class="ml-3 flex-1">
                     <h3 class="text-sm font-bold">${title}</h3>
