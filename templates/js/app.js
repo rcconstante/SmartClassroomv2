@@ -1323,16 +1323,22 @@ function initAnalyticsPresenceChart(data) {
     const ctx = document.getElementById('analyticsPresenceChart');
     if (!ctx) return;
     
-    // Extract students detected data from the API response
-    const hasStudentData = data && data.some(d => (d.studentsPresent !== undefined && d.studentsPresent > 0) || (d.avgStudents !== undefined && d.avgStudents > 0));
+    // Ensure data is an array
+    if (!Array.isArray(data)) {
+        console.warn('Presence chart: data is not an array', data);
+        data = [];
+    }
     
-    // Build presence data array - use studentsPresent or avgStudents from API data
+    // Extract students detected data from the API response
+    // The API returns avgStudents for presence trends
     const studentData = data.map((d) => ({
         date: d.date,
-        students: d.studentsPresent || d.avgStudents || 0
+        students: d.avgStudents ?? d.studentsPresent ?? 0
     }));
     
     const hasData = studentData.some(d => d.students > 0);
+    
+    console.log('Presence chart data:', studentData, 'hasData:', hasData);
 
     window.analyticsPresenceChart = new Chart(ctx, {
         type: 'line',
@@ -1345,7 +1351,12 @@ function initAnalyticsPresenceChart(data) {
                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                 tension: 0.4,
                 fill: true,
-                borderWidth: 3
+                borderWidth: 3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#3b82f6',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
             }]
         },
         options: {
@@ -1361,10 +1372,12 @@ function initAnalyticsPresenceChart(data) {
                     }
                 },
                 tooltip: {
-                    enabled: hasData,
+                    mode: 'index',
+                    intersect: false,
                     callbacks: {
                         label: function(context) {
-                            return hasData ? `Students Detected: ${context.parsed.y}` : 'No data available';
+                            const value = context.parsed.y;
+                            return value > 0 ? `Students Detected: ${value}` : 'No data';
                         }
                     }
                 }
@@ -1377,10 +1390,7 @@ function initAnalyticsPresenceChart(data) {
                         color: 'rgba(0, 0, 0, 0.05)'
                     },
                     ticks: {
-                        stepSize: 5,
-                        callback: function(value) {
-                            return hasData ? value : '';
-                        }
+                        stepSize: 5
                     },
                     title: {
                         display: true,
@@ -1494,12 +1504,18 @@ function updateAnalyticsEngagementChart(data) {
 function updateAnalyticsPresenceChart(data) {
     if (!window.analyticsPresenceChart) return;
     
+    // Ensure data is an array
+    if (!Array.isArray(data)) {
+        console.warn('updateAnalyticsPresenceChart: data is not an array', data);
+        return;
+    }
+    
     const studentData = data.map((d) => ({
         date: d.date,
-        students: d.studentsPresent || d.avgStudents || 0
+        students: d.avgStudents ?? d.studentsPresent ?? 0
     }));
     
-    const hasData = studentData.some(d => d.students > 0);
+    console.log('Updating presence chart with:', studentData);
     
     // Update labels and data
     window.analyticsPresenceChart.data.labels = studentData.map(d => 
@@ -1507,9 +1523,6 @@ function updateAnalyticsPresenceChart(data) {
     );
     
     window.analyticsPresenceChart.data.datasets[0].data = studentData.map(d => d.students);
-    
-    // Update tooltip enabled state
-    window.analyticsPresenceChart.options.plugins.tooltip.enabled = hasData;
     
     window.analyticsPresenceChart.update();
 }

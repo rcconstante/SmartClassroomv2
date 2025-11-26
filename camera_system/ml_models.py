@@ -15,6 +15,16 @@ import pickle
 import os
 from datetime import datetime
 from collections import deque
+import warnings
+
+# Suppress sklearn version mismatch warnings
+# This is safe as long as model structure hasn't changed significantly
+warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings('ignore', category=InconsistentVersionWarning)
+except ImportError:
+    pass  # Older sklearn versions don't have this warning class
 
 
 class BaseModel(ABC):

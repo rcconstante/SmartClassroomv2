@@ -372,13 +372,16 @@ def get_iot_sensor_alerts():
 @app.route('/api/iot/start-logging', methods=['POST'])
 def start_iot_logging():
     """Start IoT database logging and CV data sync"""
-    if not iot_enabled or not iot_sensor or not iot_sensor.is_connected:
+    # Import the module's iot_sensor directly to get the updated reference
+    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+    
+    if not iot_enabled or not current_iot_sensor or not current_iot_sensor.is_connected:
         return jsonify({
             'success': False,
-            'message': 'IoT sensors not connected'
+            'message': 'Please connect the IoT sensor first'
         }), 503
     
-    result = iot_sensor.start_db_logging()
+    result = current_iot_sensor.start_db_logging()
     
     # Start CV data sync thread if logging started successfully
     if result['success']:
@@ -391,7 +394,10 @@ def start_iot_logging():
 @app.route('/api/iot/stop-logging', methods=['POST'])
 def stop_iot_logging():
     """Stop IoT database logging and CV data sync"""
-    if not iot_enabled or not iot_sensor:
+    # Import the module's iot_sensor directly to get the updated reference
+    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+    
+    if not iot_enabled or not current_iot_sensor:
         return jsonify({
             'success': False,
             'message': 'IoT sensor not initialized'
@@ -400,7 +406,7 @@ def stop_iot_logging():
     # Stop CV data sync thread
     stop_cv_data_sync()
     
-    result = iot_sensor.stop_db_logging()
+    result = current_iot_sensor.stop_db_logging()
     status_code = 200 if result['success'] else 400
     return jsonify(result), status_code
 
@@ -408,7 +414,10 @@ def stop_iot_logging():
 @app.route('/api/iot/logging-status', methods=['GET'])
 def get_logging_status():
     """Get current database logging status"""
-    if not iot_enabled or not iot_sensor:
+    # Import the module's iot_sensor directly to get the updated reference
+    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+    
+    if not iot_enabled or not current_iot_sensor:
         return jsonify({
             'enabled': False,
             'db_file': None,
@@ -416,20 +425,23 @@ def get_logging_status():
             'record_count': 0
         })
     
-    status = iot_sensor.get_db_logging_status()
+    status = current_iot_sensor.get_db_logging_status()
     return jsonify(status)
 
 
 @app.route('/api/iot/export-csv', methods=['POST'])
 def export_iot_csv():
     """Export current SQLite database to CSV"""
-    if not iot_enabled or not iot_sensor or not iot_sensor.db_logging_enabled:
+    # Import the module's iot_sensor directly to get the updated reference
+    from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+    
+    if not iot_enabled or not current_iot_sensor or not current_iot_sensor.db_logging_enabled:
         return jsonify({
             'success': False,
             'message': 'No active database logging session'
         }), 400
     
-    result = iot_sensor.export_db_to_csv()
+    result = current_iot_sensor.export_db_to_csv()
     
     if result['success']:
         # Return the CSV file for download
@@ -1149,29 +1161,31 @@ def cv_data_sync_worker():
     
     while cv_data_sync_running:
         try:
-            # Only sync if IoT logging is enabled
-            if iot_enabled and iot_sensor and iot_sensor.db_logging_enabled:
-                # Get current CV data
-                occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
-                # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
-                emotion_counts = current_emotion_stats.get('emotions', {})
-                
-                # Get high/low engagement counts
-                high_engagement = current_emotion_stats.get('high_engagement', 0)
-                low_engagement = current_emotion_stats.get('low_engagement', 0)
-                
+            # Get current CV data
+            occupancy = classroom_data['current_stats'].get('studentsDetected', 0)
+            # Use emotion COUNTS (not percentages) - each face contributes 1 to its dominant emotion
+            emotion_counts = current_emotion_stats.get('emotions', {})
+            
+            # Get high/low engagement counts
+            high_engagement = current_emotion_stats.get('high_engagement', 0)
+            low_engagement = current_emotion_stats.get('low_engagement', 0)
+            
+            # Always log to analytics database (independent of IoT logging)
+            if analytics_db:
+                analytics_db.log_engagement(
+                    high_engagement=high_engagement,
+                    low_engagement=low_engagement,
+                    students_detected=occupancy,
+                    emotion_counts=emotion_counts
+                )
+                analytics_db.log_presence(students_count=occupancy)
+            
+            # Only sync to IoT sensor if IoT logging is enabled
+            # Import the module's iot_sensor directly to get the updated reference
+            from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+            if iot_enabled and current_iot_sensor and current_iot_sensor.db_logging_enabled:
                 # Update IoT sensor with CV data (counts, not percentages)
-                iot_sensor.update_cv_data(occupancy, emotion_counts)
-                
-                # Log to analytics database
-                if analytics_db:
-                    analytics_db.log_engagement(
-                        high_engagement=high_engagement,
-                        low_engagement=low_engagement,
-                        students_detected=occupancy,
-                        emotion_counts=emotion_counts
-                    )
-                    analytics_db.log_presence(students_count=occupancy)
+                current_iot_sensor.update_cv_data(occupancy, emotion_counts)
                 
                 # Update environmental predictor with current data
                 if environmental_predictor and environmental_predictor.is_loaded:
@@ -1190,8 +1204,9 @@ def cv_data_sync_worker():
                             'timestamp': iot_data.get('timestamp')
                         }
                         environmental_predictor.add_reading(predictor_data)
-                
-                print(f"[CV Sync] Updated IoT & Analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
+            
+            if occupancy > 0 or high_engagement > 0 or low_engagement > 0:
+                print(f"[CV Sync] Logged analytics: occupancy={occupancy}, high={high_engagement}, low={low_engagement}")
             
         except Exception as e:
             print(f"[CV Sync] Error syncing data: {e}")
@@ -1350,6 +1365,9 @@ def start_camera():
         success = active_camera_stream.start()
         
         if success:
+            # Start CV data sync thread to log analytics data
+            start_cv_data_sync()
+            
             return jsonify({
                 'success': True,
                 'camera_id': camera_id,
@@ -1376,6 +1394,12 @@ def stop_camera():
         if active_camera_stream:
             active_camera_stream.stop()
             active_camera_stream = None
+        
+        # Stop CV data sync if IoT logging is not active
+        # (if IoT logging is active, keep syncing IoT data)
+        from camera_system.iot_sensor import iot_sensor as current_iot_sensor
+        if not (iot_enabled and current_iot_sensor and current_iot_sensor.db_logging_enabled):
+            stop_cv_data_sync()
         
         # Reset emotion stats
         current_emotion_stats = {
