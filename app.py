@@ -886,67 +886,38 @@ def update_settings():
 
 @app.route('/api/analytics/engagement-trends', methods=['GET'])
 def get_engagement_trends():
-    """Get engagement trends over time - Track high/low engagement from database"""
+    """Get engagement trends - Real-time data only (no database)"""
     days = request.args.get('days', default=7, type=int)
-    start_date = request.args.get('start_date', default=None, type=str)
-    end_date = request.args.get('end_date', default=None, type=str)
-    
-    analytics_db = get_analytics_db() if get_analytics_db else None
     
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     high_engaged = current_emotion_stats.get('high_engagement', 0)
     low_engaged = current_emotion_stats.get('low_engagement', 0)
     
-    if analytics_db:
-        trends_data = analytics_db.get_engagement_trends(
-            start_date=start_date,
-            end_date=end_date,
-            days=days
-        )
+    trends = {
+        'period': 'Current session (real-time)',
+        'data': [],
+        'source': 'realtime'
+    }
+    
+    for i in range(days - 1, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
         
-        if trends_data and len(trends_data) > 0:
-            today_str = datetime.now().date().isoformat()
-            has_today_data = any(d['date'] == today_str and d['dataPoints'] > 0 for d in trends_data)
-            
-            if not has_today_data and current_students > 0:
-                for item in trends_data:
-                    if item['date'] == today_str:
-                        item['highlyEngaged'] = high_engaged
-                        item['disengaged'] = low_engaged
-                        item['studentsPresent'] = current_students
-                        item['dataPoints'] = 1
-        
-        trends = {
-            'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
-            'data': trends_data,
-            'source': 'database'
-        }
-    else:
-        trends = {
-            'period': f'Current session only',
-            'data': [],
-            'source': 'session'
-        }
-        
-        for i in range(days - 1, -1, -1):
-            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-            
-            if i == 0:
-                trends['data'].append({
-                    'date': date,
-                    'highlyEngaged': high_engaged,
-                    'disengaged': low_engaged,
-                    'studentsPresent': current_students,
-                    'dataPoints': 1 if current_students > 0 else 0
-                })
-            else:
-                trends['data'].append({
-                    'date': date,
-                    'highlyEngaged': 0,
-                    'disengaged': 0,
-                    'studentsPresent': 0,
-                    'dataPoints': 0
-                })
+        if i == 0:
+            trends['data'].append({
+                'date': date,
+                'highlyEngaged': high_engaged,
+                'disengaged': low_engaged,
+                'studentsPresent': current_students,
+                'dataPoints': 1 if current_students > 0 else 0
+            })
+        else:
+            trends['data'].append({
+                'date': date,
+                'highlyEngaged': 0,
+                'disengaged': 0,
+                'studentsPresent': 0,
+                'dataPoints': 0
+            })
     
     return jsonify(trends), 200
 
@@ -1033,54 +1004,25 @@ def export_analytics():
 
 @app.route('/api/analytics/presence-trends', methods=['GET'])
 def get_presence_trends():
-    """Get classroom presence trends from database"""
+    """Get classroom presence trends - Real-time data only (no database)"""
     days = request.args.get('days', default=7, type=int)
-    start_date = request.args.get('start_date', default=None, type=str)
-    end_date = request.args.get('end_date', default=None, type=str)
-    
-    analytics_db = get_analytics_db() if get_analytics_db else None
     current_students = classroom_data['current_stats'].get('studentsDetected', 0)
     
-    if analytics_db:
-        presence_data = analytics_db.get_presence_trends(
-            start_date=start_date,
-            end_date=end_date,
-            days=days
-        )
-        
-        if presence_data and len(presence_data) > 0:
-            today_str = datetime.now().date().isoformat()
-            has_today_data = any(d['date'] == today_str and d['dataPoints'] > 0 for d in presence_data)
-            
-            if not has_today_data and current_students > 0:
-                for item in presence_data:
-                    if item['date'] == today_str:
-                        item['avgStudents'] = current_students
-                        item['maxStudents'] = current_students
-                        item['minStudents'] = current_students
-                        item['dataPoints'] = 1
-        
-        result = {
-            'period': f'Last {days} days' if not start_date else f'{start_date} to {end_date or "today"}',
-            'data': presence_data,
-            'source': 'database'
-        }
-    else:
-        result = {
-            'period': 'Current session only',
-            'data': [],
-            'source': 'session'
-        }
-        
-        for i in range(days - 1, -1, -1):
-            date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
-            result['data'].append({
-                'date': date,
-                'avgStudents': current_students if i == 0 else 0,
-                'maxStudents': current_students if i == 0 else 0,
-                'minStudents': current_students if i == 0 else 0,
-                'dataPoints': 1 if i == 0 and current_students > 0 else 0
-            })
+    result = {
+        'period': 'Current session (real-time)',
+        'data': [],
+        'source': 'realtime'
+    }
+    
+    for i in range(days - 1, -1, -1):
+        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        result['data'].append({
+            'date': date,
+            'avgStudents': current_students if i == 0 else 0,
+            'maxStudents': current_students if i == 0 else 0,
+            'minStudents': current_students if i == 0 else 0,
+            'dataPoints': 1 if i == 0 and current_students > 0 else 0
+        })
     
     return jsonify(result), 200
 
@@ -1207,6 +1149,797 @@ except ImportError as e:
     CAMERA_SYSTEM_AVAILABLE = False
     CameraDetector = None
     CameraStream = None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     EmotionDetector = None
     initialize_iot = None
     get_iot_data = None

@@ -360,6 +360,8 @@ function loadDashboard() {
     }, 2000);
     
     // Fetch environmental predictions every 60 seconds (for 1-minute ahead forecasting)
+    // Initial fetch after 5 seconds
+    setTimeout(fetchEnvironmentalPredictions, 5000);
     setInterval(fetchEnvironmentalPredictions, 60000);
     
     // Update environment status every 10 seconds
@@ -556,7 +558,8 @@ function initEngagementChart() {
                             if (label) {
                                 label += ': ';
                             }
-                            label += context.parsed.y.toFixed(1) + '%';
+                            const count = Math.floor(context.parsed.y);
+                            label += count + ' student' + (count !== 1 ? 's' : '');
                             return label;
                         }
                     }
@@ -565,15 +568,19 @@ function initEngagementChart() {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100,
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)',
                         drawBorder: false
                     },
                     ticks: {
+                        stepSize: 1,
                         callback: function(value) {
-                            return value + '%';
+                            return Math.floor(value) + ' students';
                         }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Number of Students'
                     }
                 },
                 x: {
@@ -594,7 +601,7 @@ function initEngagementChart() {
     setInterval(updateEngagementChart, 2000);
 }
 
-// Update engagement chart with real-time high/low engagement data
+// Update engagement chart with real-time high/low engagement data (COUNTS not percentages)
 async function updateEngagementChart() {
     if (!engagementChart) return;
     
@@ -606,15 +613,15 @@ async function updateEngagementChart() {
             const data = result.data;
             const engagementSummary = data.engagement_summary || {};
             
-            // Get percentages
-            const highPct = engagementSummary.high_engaged_pct || 0;
-            const lowPct = engagementSummary.low_engaged_pct || 0;
+            // Get COUNTS (number of students)
+            const highCount = engagementSummary.high_engaged_count || 0;
+            const lowCount = engagementSummary.low_engaged_count || 0;
             
             // Add to history
             engagementHistory.push({
                 timestamp: new Date(),
-                high: highPct,
-                low: lowPct
+                high: highCount,
+                low: lowCount
             });
             
             // Keep only last 20 data points
@@ -879,7 +886,13 @@ function updateForecastChart(predictionData) {
     const current = predictionData.current_conditions || {};
     const predicted = predictionData.predicted_conditions || {};
     
-    // Update chart data
+    // Only update if we have actual prediction data
+    if (!predicted.predicted_temperature) {
+        console.debug('No forecast data available yet');
+        return;
+    }
+    
+    // Update chart data with actual values
     forecastChart.data.datasets[0].data = [
         current.temperature || 0,
         current.humidity || 0,
@@ -889,14 +902,14 @@ function updateForecastChart(predictionData) {
     ];
     
     forecastChart.data.datasets[1].data = [
-        predicted.predicted_temperature || 0,
-        predicted.predicted_humidity || 0,
-        predicted.predicted_gas || 0,
-        predicted.predicted_light || 0,
-        predicted.predicted_sound || 0
+        predicted.predicted_temperature || current.temperature || 0,
+        predicted.predicted_humidity || current.humidity || 0,
+        predicted.predicted_gas || current.co2 || 0,
+        predicted.predicted_light || current.light || 0,
+        predicted.predicted_sound || current.sound || 0
     ];
     
-    forecastChart.update('none');
+    forecastChart.update();
 }
 
 // Initialize 7 Emotions Chart (for Engagement States card)
@@ -1802,34 +1815,45 @@ function getTimeAgo(timestamp) {
     return `${days}d ago`;
 }
 
-// Show notifications for prediction recommendations
+// Track last notification time to prevent duplicates
+let lastNotificationTime = 0;
+let lastNotificationData = null;
+
+// Show notifications for prediction recommendations (max once per minute)
 function showPredictionNotifications(recommendations, classification) {
     if (!recommendations || recommendations.length === 0) return;
     
-    // Show critical alert if room is uncomfortable
-    if (classification === 'Critical' || classification === 'Poor') {
-        showNotification({
-            type: 'alert',
-            title: classification === 'Critical' ? '🚨 ALERT: Room Conditions Critical!' : '⚠️ Warning: Room Conditions Poor',
-            message: `Environment predicted to be ${classification.toLowerCase()}. Please check recommendations.`,
-            duration: 15000,
-            severity: classification === 'Critical' ? 'error' : 'warning'
-        });
+    const now = Date.now();
+    const notificationKey = JSON.stringify({ recommendations, classification: classification?.label });
+    
+    // Only show notifications once per minute and if data changed
+    if (now - lastNotificationTime < 60000 && lastNotificationData === notificationKey) {
+        return;
     }
     
-    // Show individual recommendations (limit to 3 most important)
-    const topRecommendations = recommendations.slice(0, 3);
-    topRecommendations.forEach((rec, index) => {
-        setTimeout(() => {
-            showNotification({
-                type: 'recommendation',
-                title: getRecommendationIcon(rec) + ' Recommendation',
-                message: rec,
-                duration: 10000,
-                severity: 'info'
-            });
-        }, index * 2000); // Stagger notifications by 2 seconds
-    });
+    lastNotificationTime = now;
+    lastNotificationData = notificationKey;
+    
+    // Show critical alert if room is uncomfortable
+    const comfortLabel = classification?.label || classification;
+    if (comfortLabel === 'Critical' || comfortLabel === 'Poor') {
+        showNotification({
+            type: 'alert',
+            title: comfortLabel === 'Critical' ? '🚨 ALERT: Room Conditions Critical!' : '⚠️ Warning: Room Conditions Poor',
+            message: `Environment predicted to be ${comfortLabel.toLowerCase()}. Please check recommendations.`,
+            duration: 15000,
+            severity: comfortLabel === 'Critical' ? 'error' : 'warning'
+        });
+    } else if (comfortLabel === 'Optimal') {
+        // Only show optimal notification once
+        showNotification({
+            type: 'success',
+            title: '✅ Optimal Conditions',
+            message: 'All environmental conditions are optimal.',
+            duration: 5000,
+            severity: 'success'
+        });
+    }
 }
 
 // Get icon for recommendation based on content
