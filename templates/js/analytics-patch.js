@@ -1,9 +1,13 @@
-// Analytics Real-Time DataPatch
+// Analytics Real-Time Data Patch
 // This file patches the refreshAnalyticsCharts function to use real-time CV data
+// for the Classroom Presence and Student Engagement charts
 
-// Analytics data history buffers (for real-time charts like dashboard)
+// Analytics data history buffers (for real-time charts)
 window.analyticsEngagementHistory = [];
 window.analyticsPresenceHistory = [];
+
+// Store the original refreshAnalyticsCharts function
+const originalRefreshAnalyticsCharts = window.refreshAnalyticsCharts;
 
 // Override refreshAnalyticsCharts to use real-time CV data
 window.refreshAnalyticsCharts = async function () {
@@ -42,41 +46,66 @@ window.refreshAnalyticsCharts = async function () {
                 window.analyticsPresenceHistory.shift();
             }
 
-            // Build engagement chart data with timestamps
-            const engagementData = window.analyticsEngagementHistory.map((item) => ({
-                date: item.timestamp.toISOString(),
-                highlyEngaged: item.high,
-                disengaged: item.low,
-                dataPoints: 1
-            }));
-
-            // Build presence chart data with timestamps
-            const presenceData = window.analyticsPresenceHistory.map((item) => ({
-                date: item.timestamp.toISOString(),
-                studentsPresent: item.students,
-                avgStudents: item.students,
-                dataPoints: 1
-            }));
-
-            // Update or initialize engagement chart
+            // Update engagement chart if it exists
             if (window.analyticsEngagementChart) {
-                updateAnalyticsEngagementChart(engagementData);
-            } else if (typeof initAnalyticsEngagementChart === 'function') {
-                initAnalyticsEngagementChart(engagementData);
+                // Filter to only show data points with actual data
+                const filteredEngagement = window.analyticsEngagementHistory.filter(
+                    item => item.high > 0 || item.low > 0
+                );
+                const hasEngagementData = filteredEngagement.length > 0;
+                const engagementDataToShow = hasEngagementData 
+                    ? filteredEngagement 
+                    : window.analyticsEngagementHistory;
+                
+                // Update chart labels and data
+                window.analyticsEngagementChart.data.labels = engagementDataToShow.map(item =>
+                    item.timestamp.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit' 
+                    })
+                );
+                window.analyticsEngagementChart.data.datasets[0].data = engagementDataToShow.map(item => item.high);
+                window.analyticsEngagementChart.data.datasets[1].data = engagementDataToShow.map(item => item.low);
+                window.analyticsEngagementChart.options.plugins.tooltip.enabled = hasEngagementData;
+                window.analyticsEngagementChart.update('none');
             }
 
-            // Update or initialize presence chart
+            // Update presence chart if it exists
             if (window.analyticsPresenceChart) {
-                updateAnalyticsPresenceChart(presenceData);
-            } else if (typeof initAnalyticsPresenceChart === 'function') {
-                initAnalyticsPresenceChart(presenceData);
+                // Filter to only show data points with students detected
+                const filteredPresence = window.analyticsPresenceHistory.filter(
+                    item => item.students > 0
+                );
+                const hasPresenceData = filteredPresence.length > 0;
+                const presenceDataToShow = hasPresenceData 
+                    ? filteredPresence 
+                    : window.analyticsPresenceHistory;
+                
+                // Update chart labels and data
+                window.analyticsPresenceChart.data.labels = presenceDataToShow.map(item =>
+                    item.timestamp.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit' 
+                    })
+                );
+                window.analyticsPresenceChart.data.datasets[0].data = presenceDataToShow.map(item => item.students);
+                window.analyticsPresenceChart.options.plugins.tooltip.enabled = hasPresenceData;
+                window.analyticsPresenceChart.update('none');
             }
 
-            console.log(`✓ Analytics updated with real-time CV data (${totalStudents} students, ${highCount} highly engaged, ${lowCount} disengaged)`);
+            if (totalStudents > 0 || highCount > 0 || lowCount > 0) {
+                console.log(`✓ Analytics updated with real-time CV data (${totalStudents} students, ${highCount} highly engaged, ${lowCount} disengaged)`);
+            }
         }
 
     } catch (error) {
-        console.error('Error refreshing analytics:', error);
+        console.error('Error refreshing analytics with real-time data:', error);
+        // Fall back to original function if available
+        if (typeof originalRefreshAnalyticsCharts === 'function') {
+            return originalRefreshAnalyticsCharts();
+        }
     }
 };
 
