@@ -1519,15 +1519,32 @@ async function populateIoTTable() {
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/iot/history');  // No limit - get all records
+        const response = await fetch('/api/iot/history');
         const result = await response.json();
         
-        if (!result.success || !result.data || result.data.length === 0) {
+        // Check if IoT sensors are not available at all
+        if (!result.success) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
                         <i data-lucide="wifi-off" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
-                        <p>No IoT sensor data available. Connect Arduino to start logging.</p>
+                        <p>${result.error || 'IoT sensors not available'}</p>
+                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Make sure Arduino is connected and Serial Monitor is closed</p>
+                    </td>
+                </tr>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        // Check if no data yet (sensors connected but no readings)
+        if (!result.data || result.data.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="14" style="padding: 40px; text-align: center; color: var(--text-secondary);">
+                        <i data-lucide="loader" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5; animation: spin 2s linear infinite;"></i>
+                        <p>Waiting for sensor data...</p>
+                        <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Data will appear here once the sensors start transmitting</p>
                     </td>
                 </tr>
             `;

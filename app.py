@@ -732,31 +732,50 @@ def get_iot_history():
         except Exception as e:
             print(f"[IoT] Error reading from database: {e}")
     
-    # If no database data, try the queue and current data
-    if not history_data:
-        try:
-            # Don't consume queue - just peek current data
-            data = get_iot_data()
-            if data and data.get('timestamp'):
-                history_data.append({
-                    'timestamp': data.get('timestamp').isoformat(),
-                    'temperature': round(data.get('raw_temperature', 0), 1),
-                    'humidity': round(data.get('raw_humidity', 0), 1),
-                    'light': round(data.get('raw_light', 0), 1),
-                    'sound': data.get('raw_sound', 0),
-                    'gas': data.get('raw_gas', 0),
-                    'environmental_score': round(data.get('environmental_score', 0), 1),
-                    'occupancy': data.get('occupancy', 0),
-                    'happy': int(data.get('happy', 0)),
-                    'surprise': int(data.get('surprise', 0)),
-                    'neutral': int(data.get('neutral', 0)),
-                    'sad': int(data.get('sad', 0)),
-                    'angry': int(data.get('angry', 0)),
-                    'disgust': int(data.get('disgust', 0)),
-                    'fear': int(data.get('fear', 0))
-                })
-        except:
-            pass
+    # Always add current real-time data if available (even if db has data)
+    # This ensures the table shows live data from connected sensors
+    try:
+        data = get_iot_data()
+        # Check if we have any sensor data (temperature or humidity present means data is flowing)
+        has_sensor_data = (data and (
+            data.get('raw_temperature') is not None or 
+            data.get('raw_humidity') is not None or
+            data.get('timestamp') is not None
+        ))
+        
+        if has_sensor_data:
+            # Use current time if timestamp is missing
+            timestamp = data.get('timestamp')
+            if timestamp:
+                timestamp_str = timestamp.isoformat()
+            else:
+                timestamp_str = datetime.now().isoformat()
+            
+            current_row = {
+                'timestamp': timestamp_str,
+                'temperature': round(data.get('raw_temperature') or 0, 1),
+                'humidity': round(data.get('raw_humidity') or 0, 1),
+                'light': round(data.get('raw_light') or 0, 1),
+                'sound': data.get('raw_sound') or 0,
+                'gas': data.get('raw_gas') or 0,
+                'environmental_score': round(data.get('environmental_score') or 0, 1),
+                'occupancy': data.get('occupancy') or 0,
+                'happy': int(data.get('happy') or 0),
+                'surprise': int(data.get('surprise') or 0),
+                'neutral': int(data.get('neutral') or 0),
+                'sad': int(data.get('sad') or 0),
+                'angry': int(data.get('angry') or 0),
+                'disgust': int(data.get('disgust') or 0),
+                'fear': int(data.get('fear') or 0)
+            }
+            
+            # Add current data if not already in the list (avoid duplicates)
+            if not history_data or (history_data and history_data[-1].get('timestamp') != current_row['timestamp']):
+                history_data.append(current_row)
+    except Exception as e:
+        print(f"[IoT] Error getting current data: {e}")
+        import traceback
+        traceback.print_exc()
     
     return jsonify({
         'success': True,
