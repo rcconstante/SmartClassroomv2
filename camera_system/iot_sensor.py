@@ -106,6 +106,11 @@ class IoTSensorReader:
         self.db_file = None
         self.db_session_id = None
         
+        # In-memory data buffer for forecasting (works without database logging)
+        self.memory_buffer = []  # Rolling buffer of recent readings
+        self.memory_buffer_max_size = 100  # Keep last 100 readings (~16 minutes at 10s intervals)
+        self.last_buffer_update = None
+        
         # Current sensor data
         self.current_data = {
             'temperature': None,
@@ -456,6 +461,49 @@ class IoTSensorReader:
                         except queue.Full:
                             pass  # Queue full, skip this reading
                         
+                        # Update in-memory buffer for forecasting (works without database logging)
+                        # Only add complete readings (all sensors present) every ~10 seconds
+                        required_sensors = ['raw_temperature', 'raw_humidity', 'raw_light', 'raw_sound', 'raw_gas']
+                        if all(self.current_data.get(key) is not None for key in required_sensors):
+                            current_time = time.time()
+                            # Add to buffer every 10 seconds to match expected data rate
+                            if self.last_buffer_update is None or (current_time - self.last_buffer_update) >= 10:
+                                buffer_entry = {
+                                    'timestamp': self.current_data['timestamp'].isoformat(),
+                                    'temperature': round(self.current_data.get('raw_temperature', 0), 1),
+                                    'humidity': round(self.current_data.get('raw_humidity', 0), 1),
+                                    'light': round(self.current_data.get('raw_light', 0), 1),
+                                    'sound': self.current_data.get('raw_sound', 0),
+                                    'gas': self.current_data.get('raw_gas', 0),
+                                    'occupancy': self.current_data.get('occupancy', 0),
+                                    'happy': int(self.current_data.get('happy', 0)),
+                                    'surprise': int(self.current_data.get('surprise', 0)),
+                                    'neutral': int(self.current_data.get('neutral', 0)),
+                                    'sad': int(self.current_data.get('sad', 0)),
+                                    'angry': int(self.current_data.get('angry', 0)),
+                                    'disgust': int(self.current_data.get('disgust', 0)),
+                                    'fear': int(self.current_data.get('fear', 0)),
+                                    'hour': self.current_data['timestamp'].hour,
+                                    'minute': self.current_data['timestamp'].minute,
+                                    'high_engagement': (int(self.current_data.get('happy', 0)) + 
+                                                       int(self.current_data.get('surprise', 0)) + 
+                                                       int(self.current_data.get('neutral', 0))),
+                                    'low_engagement': (int(self.current_data.get('sad', 0)) + 
+                                                      int(self.current_data.get('angry', 0)) + 
+                                                      int(self.current_data.get('disgust', 0)) + 
+                                                      int(self.current_data.get('fear', 0)))
+                                }
+                                self.memory_buffer.append(buffer_entry)
+                                
+                                # Keep buffer at max size (rolling window)
+                                if len(self.memory_buffer) > self.memory_buffer_max_size:
+                                    self.memory_buffer.pop(0)
+                                
+                                self.last_buffer_update = current_time
+                                
+                                if len(self.memory_buffer) <= 25 and len(self.memory_buffer) % 5 == 0:
+                                    print(f"[IoT] Memory buffer: {len(self.memory_buffer)}/{self.memory_buffer_max_size} readings (need 20 for forecasting)")
+                        
                         # Write to SQLite database immediately when we have all sensor readings
                         if self.db_logging_enabled:
                             # Check if we have all required sensor data (complete reading from Arduino)
@@ -738,55 +786,71 @@ class IoTSensorReader:
     
     def get_recent_data(self, limit: int = 30) -> List[Dict]:
         """
-        Get recent sensor data from database for Gradient Boosting prediction
+        Get recent sensor data for Gradient Boosting prediction
+        Uses database if logging is enabled, otherwise uses in-memory buffer
         Returns list of dicts with sensor readings and metadata
         """
-        if not self.db_logging_enabled or not self.db_connection:
-            return []
+        # First, try to use database if logging is enabled
+        if self.db_logging_enabled and self.db_connection:
+            try:
+                cursor = self.db_connection.cursor()
+                cursor.execute('''
+                    SELECT timestamp, temperature, humidity, light, sound, gas,
+                           occupancy, happy, surprise, neutral, sad, angry, disgust, fear
+                    FROM sensor_data
+                    WHERE session_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                ''', (self.db_session_id, limit))
+                
+                rows = cursor.fetchall()
+                
+                # Convert to list of dicts (reverse to chronological order)
+                data = []
+                for row in reversed(rows):
+                    data.append({
+                        'timestamp': row[0],
+                        'temperature': row[1],
+                        'humidity': row[2],
+                        'light': row[3],
+                        'sound': row[4],
+                        'gas': row[5],
+                        'occupancy': row[6],
+                        'happy': row[7],
+                        'surprise': row[8],
+                        'neutral': row[9],
+                        'sad': row[10],
+                        'angry': row[11],
+                        'disgust': row[12],
+                        'fear': row[13],
+                        # Add time features for model
+                        'hour': datetime.fromisoformat(row[0]).hour if row[0] else 0,
+                        'minute': datetime.fromisoformat(row[0]).minute if row[0] else 0,
+                        'high_engagement': (row[7] or 0) + (row[8] or 0) + (row[9] or 0),
+                        'low_engagement': (row[10] or 0) + (row[11] or 0) + (row[12] or 0) + (row[13] or 0)
+                    })
+                
+                return data
+                
+            except Exception as e:
+                print(f"[IoT] Error getting data from database: {e}")
+                # Fall through to memory buffer
         
-        try:
-            cursor = self.db_connection.cursor()
-            cursor.execute('''
-                SELECT timestamp, temperature, humidity, light, sound, gas,
-                       occupancy, happy, surprise, neutral, sad, angry, disgust, fear
-                FROM sensor_data
-                WHERE session_id = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-            ''', (self.db_session_id, limit))
-            
-            rows = cursor.fetchall()
-            
-            # Convert to list of dicts (reverse to chronological order)
-            data = []
-            for row in reversed(rows):
-                data.append({
-                    'timestamp': row[0],
-                    'temperature': row[1],
-                    'humidity': row[2],
-                    'light': row[3],
-                    'sound': row[4],
-                    'gas': row[5],
-                    'occupancy': row[6],
-                    'happy': row[7],
-                    'surprise': row[8],
-                    'neutral': row[9],
-                    'sad': row[10],
-                    'angry': row[11],
-                    'disgust': row[12],
-                    'fear': row[13],
-                    # Add time features for model
-                    'hour': datetime.fromisoformat(row[0]).hour if row[0] else 0,
-                    'minute': datetime.fromisoformat(row[0]).minute if row[0] else 0,
-                    'high_engagement': (row[7] or 0) + (row[8] or 0) + (row[9] or 0),  # happy + surprise + neutral
-                    'low_engagement': (row[10] or 0) + (row[11] or 0) + (row[12] or 0) + (row[13] or 0)  # sad + angry + disgust + fear
-                })
-            
-            return data
-            
-        except Exception as e:
-            print(f"[IoT] Error getting recent data: {e}")
-            return []
+        # Use in-memory buffer (works without database logging)
+        if self.memory_buffer:
+            # Return last 'limit' entries from memory buffer
+            return self.memory_buffer[-limit:] if len(self.memory_buffer) > limit else self.memory_buffer.copy()
+        
+        return []
+    
+    def get_memory_buffer_status(self) -> Dict:
+        """Get status of the in-memory data buffer"""
+        return {
+            'buffer_size': len(self.memory_buffer),
+            'max_size': self.memory_buffer_max_size,
+            'ready_for_forecast': len(self.memory_buffer) >= 20,
+            'readings_needed': max(0, 20 - len(self.memory_buffer))
+        }
     
     def export_db_to_csv(self, output_file: str = None) -> Dict:
         """Export current SQLite database to CSV"""

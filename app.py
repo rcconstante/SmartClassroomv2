@@ -1706,15 +1706,20 @@ def get_forecast_prediction():
 
 @app.route('/api/prediction/status', methods=['GET'])
 def get_prediction_status():
-    """Get prediction system status"""
+    """Get prediction system status including memory buffer"""
     from camera_system.iot_sensor import iot_sensor
+    
+    buffer_status = {'buffer_size': 0, 'max_size': 100, 'ready_for_forecast': False, 'readings_needed': 20}
+    if iot_sensor and hasattr(iot_sensor, 'get_memory_buffer_status'):
+        buffer_status = iot_sensor.get_memory_buffer_status()
     
     return jsonify({
         'models_loaded': models_loaded,
         'iot_enabled': iot_enabled,
         'iot_connected': iot_sensor.is_connected if iot_sensor else False,
         'db_logging': iot_sensor.db_logging_enabled if iot_sensor else False,
-        'ready': models_loaded and iot_enabled and (iot_sensor.db_logging_enabled if iot_sensor else False)
+        'memory_buffer': buffer_status,
+        'ready': models_loaded and iot_enabled and buffer_status.get('ready_for_forecast', False)
     }), 200
 
 

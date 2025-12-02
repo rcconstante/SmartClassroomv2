@@ -1150,14 +1150,31 @@ async function populateAnalyticsTable(days) {
 }
 
 // Initialize Analytics Charts
+// Store chart instances globally for proper cleanup
+let analyticsEngagementChartInstance = null;
+let analyticsPresenceChartInstance = null;
+let analyticsEmotionChartInstance = null;
+
 function initAnalyticsEngagementChart(data) {
     const ctx = document.getElementById('analyticsEngagementChart');
     if (!ctx) return;
     
+    // Destroy existing chart if it exists
+    if (analyticsEngagementChartInstance) {
+        analyticsEngagementChartInstance.destroy();
+        analyticsEngagementChartInstance = null;
+    }
+    
+    // Also check for any chart on this canvas
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+    
     // Check if we have real data
     const hasData = data.some(d => d.avgEngagement > 0);
 
-    new Chart(ctx, {
+    analyticsEngagementChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: data.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })),
@@ -1231,6 +1248,18 @@ function initAnalyticsPresenceChart(data) {
     const ctx = document.getElementById('analyticsPresenceChart');
     if (!ctx) return;
     
+    // Destroy existing chart if it exists
+    if (analyticsPresenceChartInstance) {
+        analyticsPresenceChartInstance.destroy();
+        analyticsPresenceChartInstance = null;
+    }
+    
+    // Also check for any chart on this canvas
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+    
     // Extract students detected data from the API response
     const hasStudentData = data && data.some(d => d.studentsPresent !== undefined && d.studentsPresent > 0);
     const currentStudents = hasStudentData ? data[data.length - 1].studentsPresent : 0;
@@ -1244,7 +1273,7 @@ function initAnalyticsPresenceChart(data) {
     
     const hasData = studentData.some(d => d.students > 0);
 
-    new Chart(ctx, {
+    analyticsPresenceChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: studentData.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })),
@@ -1311,6 +1340,18 @@ function initAnalyticsEmotionChart(emotionData = {}) {
     const ctx = document.getElementById('analyticsEmotionChart');
     if (!ctx) return;
 
+    // Destroy existing chart if it exists
+    if (analyticsEmotionChartInstance) {
+        analyticsEmotionChartInstance.destroy();
+        analyticsEmotionChartInstance = null;
+    }
+    
+    // Also check for any chart on this canvas
+    const existingChart = Chart.getChart(ctx);
+    if (existingChart) {
+        existingChart.destroy();
+    }
+
     // Use FER-2013 emotion labels
     const labels = ['Happy', 'Surprise', 'Neutral', 'Sad', 'Angry', 'Disgust', 'Fear'];
     const data = [
@@ -1326,7 +1367,7 @@ function initAnalyticsEmotionChart(emotionData = {}) {
     // Check if all values are zero
     const hasData = data.some(val => val > 0);
     
-    new Chart(ctx, {
+    analyticsEmotionChartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: labels,
