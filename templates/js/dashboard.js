@@ -699,47 +699,33 @@ function initForecastingChart() {
     const ctx = document.getElementById('forecastingChart');
     if (!ctx) return;
 
-    // Initialize with empty data
-    const labels = ['Now', '+1min', '+2min', '+3min', '+4min', '+5min'];
+    // Bar chart comparing Current vs Forecast for each environmental metric
+    const labels = ['Temperature (°C)', 'Humidity (%)', 'CO₂ (ppm/10)', 'Light (lux/10)', 'Sound (dB)'];
 
     forecastingChart = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Temperature (°C)',
-                    data: Array(6).fill(null),
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.4,
-                    fill: false,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Humidity (%)',
-                    data: Array(6).fill(null),
+                    label: 'Current',
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
                     borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: false,
                     borderWidth: 2,
-                    pointRadius: 4,
-                    yAxisID: 'y'
+                    borderRadius: 6,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
                 },
                 {
-                    label: 'CO₂ (ppm)',
-                    data: Array(6).fill(null),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.4,
-                    fill: false,
+                    label: 'Forecast (+5 min)',
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(250, 204, 21, 0.8)',
+                    borderColor: '#facc15',
                     borderWidth: 2,
-                    pointRadius: 4,
-                    yAxisID: 'y1',
-                    hidden: true  // Hide by default (different scale)
+                    borderRadius: 6,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
                 }
             ]
         },
@@ -751,18 +737,17 @@ function initForecastingChart() {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        padding: 15,
+                        pointStyle: 'rectRounded',
+                        padding: 20,
                         font: {
-                            size: 11,
-                            weight: 500
+                            size: 12,
+                            weight: 600
                         }
                     }
                 },
                 tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                    padding: 14,
                     borderRadius: 8,
                     titleFont: {
                         size: 13,
@@ -770,47 +755,58 @@ function initForecastingChart() {
                     },
                     bodyFont: {
                         size: 12
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.dataset.label;
+                            const value = context.parsed.y;
+                            const metric = context.label;
+                            
+                            // Show actual values (undo scaling)
+                            if (metric.includes('CO₂')) {
+                                return `${label}: ${(value * 10).toFixed(0)} ppm`;
+                            } else if (metric.includes('Light')) {
+                                return `${label}: ${(value * 10).toFixed(0)} lux`;
+                            } else if (metric.includes('Temperature')) {
+                                return `${label}: ${value.toFixed(1)} °C`;
+                            } else if (metric.includes('Humidity')) {
+                                return `${label}: ${value.toFixed(1)} %`;
+                            } else if (metric.includes('Sound')) {
+                                return `${label}: ${value.toFixed(1)} dB`;
+                            }
+                            return `${label}: ${value}`;
+                        }
                     }
                 }
             },
             scales: {
                 y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: {
-                        display: true,
-                        text: 'Temp (°C) / Humidity (%)',
-                        font: { size: 11 }
-                    },
+                    beginAtZero: true,
+                    max: 100,
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)',
                         drawBorder: false
-                    }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
+                    },
+                    ticks: {
+                        font: { size: 11 },
+                        callback: function(value) {
+                            return value;
+                        }
+                    },
                     title: {
                         display: true,
-                        text: 'CO₂ (ppm)',
-                        font: { size: 11 }
-                    },
-                    grid: {
-                        drawOnChartArea: false
+                        text: 'Normalized Scale',
+                        font: { size: 11, weight: 500 }
                     }
                 },
                 x: {
                     grid: {
                         display: false
+                    },
+                    ticks: {
+                        font: { size: 10, weight: 500 }
                     }
                 }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
             }
         }
     });
@@ -836,46 +832,39 @@ async function updateForecastingChart() {
             const current = result.current;
             const predicted = result.predicted;
             
-            // Simple projection: current value, then predicted (assuming 1-minute ahead prediction)
-            // We'll show current + 5 projected points based on the delta
-            const tempData = [
-                current.temperature,
-                current.temperature + predicted.delta_temperature * 0.2,
-                current.temperature + predicted.delta_temperature * 0.4,
-                current.temperature + predicted.delta_temperature * 0.6,
-                current.temperature + predicted.delta_temperature * 0.8,
-                predicted.temperature
+            // Normalize values to fit on a common scale (0-100)
+            // Temperature: 15-35°C range → 0-100
+            // Humidity: 0-100% → direct
+            // CO2: 400-2000 ppm → scaled to /10 for display
+            // Light: 0-1000 lux → scaled to /10 for display
+            // Sound: 20-80 dB → 0-100 scale
+            
+            const currentData = [
+                current.temperature,                    // Temperature as-is (typically 20-30)
+                current.humidity,                       // Humidity as-is (0-100%)
+                (current.gas || 0) / 10,               // CO2 divided by 10
+                (current.light || 0) / 10,             // Light divided by 10
+                current.sound || 0                      // Sound as-is (dB)
             ];
             
-            const humidityData = [
-                current.humidity,
-                current.humidity + predicted.delta_humidity * 0.2,
-                current.humidity + predicted.delta_humidity * 0.4,
-                current.humidity + predicted.delta_humidity * 0.6,
-                current.humidity + predicted.delta_humidity * 0.8,
-                predicted.humidity
-            ];
-            
-            const co2Data = [
-                current.gas,
-                current.gas + predicted.delta_gas * 0.2,
-                current.gas + predicted.delta_gas * 0.4,
-                current.gas + predicted.delta_gas * 0.6,
-                current.gas + predicted.delta_gas * 0.8,
-                predicted.gas
+            const forecastData = [
+                predicted.temperature,                  // Predicted temperature
+                predicted.humidity,                     // Predicted humidity
+                (predicted.gas || 0) / 10,             // Predicted CO2 divided by 10
+                (predicted.light || 0) / 10,           // Predicted light divided by 10
+                predicted.sound || 0                    // Predicted sound
             ];
             
             // Update chart data
-            forecastingChart.data.datasets[0].data = tempData.map(v => v.toFixed(1));
-            forecastingChart.data.datasets[1].data = humidityData.map(v => v.toFixed(1));
-            forecastingChart.data.datasets[2].data = co2Data.map(v => Math.round(v));
+            forecastingChart.data.datasets[0].data = currentData.map(v => parseFloat(v.toFixed(1)));
+            forecastingChart.data.datasets[1].data = forecastData.map(v => parseFloat(v.toFixed(1)));
             
             forecastingChart.update('none');
             
-            console.log('[Forecast] Updated chart with predictions');
+            console.log('[Forecast] Updated bar chart - Current vs Forecast');
         } else {
-            // Log why prediction failed
-            console.log('[Forecast] Prediction not available:', result.error || result.message || 'Unknown reason');
+            // Show placeholder data when no prediction available
+            console.log('[Forecast] Prediction not available:', result.error || result.message || 'Waiting for data...');
         }
     } catch (error) {
         console.error('[Forecast] Error updating forecasting chart:', error);
