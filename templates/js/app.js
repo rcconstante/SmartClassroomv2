@@ -850,8 +850,8 @@ function loadAnalytics() {
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Temperature (°C)</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Humidity (%)</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Light (lux)</th>
-                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Sound</th>
-                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Gas</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Sound (dBA)</th>
+                                <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Gas (PPM)</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Occupancy</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Happy</th>
                                 <th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-secondary);">Surprise</th>
@@ -1425,14 +1425,18 @@ async function populateIoTTable() {
             const disgust = row.disgust !== undefined ? row.disgust : 'N/A';
             const fear = row.fear !== undefined ? row.fear : 'N/A';
             
+            // Use converted values (dBA for sound, PPM for gas) if available, fallback to raw
+            const soundDisplay = row.sound_dba !== undefined ? row.sound_dba : row.sound;
+            const gasDisplay = row.gas_ppm !== undefined ? row.gas_ppm : row.gas;
+            
             return `
                 <tr style="border-bottom: 1px solid var(--border-color);">
                     <td style="padding: 10px; font-size: 13px;">${dateStr} ${timeStr}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.temperature}°C</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.humidity}%</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600;">${row.light}</td>
-                    <td style="padding: 10px; text-align: center; font-size: 13px;">${row.sound}</td>
-                    <td style="padding: 10px; text-align: center; font-size: 13px;">${row.gas}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 13px;">${soundDisplay}</td>
+                    <td style="padding: 10px; text-align: center; font-size: 13px;">${gasDisplay}</td>
                     <td style="padding: 10px; text-align: center; font-size: 13px; font-weight: 600; color: #3b82f6;">${occupancy}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #10b981;">${happy}</td>
                     <td style="padding: 10px; text-align: center; font-size: 12px; color: #22d3ee;">${surprise}</td>
@@ -1473,15 +1477,15 @@ async function exportIoTDataCSV() {
             return;
         }
         
-        const headers = ['Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Light (lux)', 'Sound', 'Gas', 'Environmental Score'];
+        const headers = ['Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Light (lux)', 'Sound (dBA)', 'Gas (PPM)', 'Environmental Score'];
         
         const rows = result.data.map(row => [
             row.timestamp,
             row.temperature,
             row.humidity,
             row.light,
-            row.sound,
-            row.gas,
+            row.sound_dba !== undefined ? row.sound_dba : row.sound,
+            row.gas_ppm !== undefined ? row.gas_ppm : row.gas,
             row.environmental_score
         ]);
         

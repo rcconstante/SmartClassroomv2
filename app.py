@@ -8,7 +8,6 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import sys
-import random
 import cv2
 import sqlite3
 import threading
@@ -386,22 +385,31 @@ def update_dashboard_stats():
 
 @app.route('/api/dashboard/engagement', methods=['GET'])
 def get_engagement_data():
-    """Get real-time engagement data"""
-    # Generate mock data
+    """Get real-time engagement data from CV emotion detection"""
+    # Get current emotion stats from CV system
+    high_engaged_pct = (current_emotion_stats.get('emotion_percentages', {}).get('Happy', 0) +
+                        current_emotion_stats.get('emotion_percentages', {}).get('Surprise', 0) +
+                        current_emotion_stats.get('emotion_percentages', {}).get('Neutral', 0))
+    
+    low_engaged_pct = (current_emotion_stats.get('emotion_percentages', {}).get('Fear', 0) +
+                       current_emotion_stats.get('emotion_percentages', {}).get('Sad', 0) +
+                       current_emotion_stats.get('emotion_percentages', {}).get('Disgust', 0) +
+                       current_emotion_stats.get('emotion_percentages', {}).get('Angry', 0))
+    
+    total_faces = current_emotion_stats.get('total_faces', 0)
+    current_engagement = current_emotion_stats.get('engagement', 0)
+    
     engagement_data = {
-        'current': random.randint(65, 85),
-        'history': [
-            {
-                'time': (datetime.now() - timedelta(minutes=i*5)).strftime('%H:%M'),
-                'value': random.randint(60, 90)
-            }
-            for i in range(12, 0, -1)
-        ],
+        'current': int(current_engagement),
+        'total_faces': total_faces,
+        'high_engaged_pct': round(high_engaged_pct, 1),
+        'low_engaged_pct': round(low_engaged_pct, 1),
         'breakdown': {
-            'highly_engaged': random.randint(15, 25),
-            'engaged': random.randint(5, 10),
-            'disengaged': random.randint(2, 5)
-        }
+            'highly_engaged': round(high_engaged_pct),
+            'engaged': round(current_emotion_stats.get('emotion_percentages', {}).get('Neutral', 0)),
+            'disengaged': round(low_engaged_pct)
+        },
+        'timestamp': datetime.now().isoformat()
     }
     return jsonify(engagement_data), 200
 
@@ -730,7 +738,7 @@ def get_iot_latest():
             'message': 'Waiting for sensor data...'
         }), 200  # Return 200 to prevent frontend errors
     
-    # Format data for frontend
+    # Format data for frontend with converted values
     return jsonify({
         'success': True,
         'data': {
@@ -738,7 +746,9 @@ def get_iot_latest():
             'humidity': round(data.get('raw_humidity', 0), 1),
             'light_level': round(data.get('raw_light', 0), 1),
             'air_quality': data.get('raw_gas', 0),
+            'air_quality_ppm': data.get('gas_ppm', 0),  # Converted PPM value
             'sound': data.get('raw_sound', 0),
+            'sound_dba': data.get('sound_dba', 0),  # Converted dBA value
             'environmental_score': round(data.get('environmental_score', 0), 1),
             'timestamp': data.get('timestamp').isoformat() if data.get('timestamp') else None
         }
@@ -747,8 +757,8 @@ def get_iot_latest():
 
 @app.route('/api/iot/history', methods=['GET'])
 def get_iot_history():
-    """Get IoT sensor history data (all available readings)"""
-    from camera_system.iot_sensor import iot_sensor
+    """Get IoT sensor history data (all available readings) with converted values"""
+    from camera_system.iot_sensor import iot_sensor, getDBA, mq135_getPPM
     
     limit = request.args.get('limit', default=1000, type=int)
     limit = min(limit, 5000)
@@ -765,13 +775,17 @@ def get_iot_history():
         while not iot_sensor.data_queue.empty() and len(history_data) < limit:
             data = iot_sensor.data_queue.get_nowait()
             if data and data.get('timestamp'):
+                raw_sound = data.get('raw_sound', 0)
+                raw_gas = data.get('raw_gas', 0)
                 history_data.append({
                     'timestamp': data.get('timestamp').isoformat(),
                     'temperature': round(data.get('raw_temperature', 0), 1),
                     'humidity': round(data.get('raw_humidity', 0), 1),
                     'light': round(data.get('raw_light', 0), 1),
-                    'sound': data.get('raw_sound', 0),
-                    'gas': data.get('raw_gas', 0),
+                    'sound': raw_sound,
+                    'sound_dba': getDBA(raw_sound) if raw_sound else 0,
+                    'gas': raw_gas,
+                    'gas_ppm': mq135_getPPM(raw_gas) if raw_gas else 0,
                     'environmental_score': round(data.get('environmental_score', 0), 1),
                     'occupancy': data.get('occupancy', 0),
                     'happy': int(data.get('happy', 0)),
@@ -788,13 +802,17 @@ def get_iot_history():
     if not history_data:
         data = get_iot_data()
         if data and data.get('timestamp'):
+            raw_sound = data.get('raw_sound', 0)
+            raw_gas = data.get('raw_gas', 0)
             history_data.append({
                 'timestamp': data.get('timestamp').isoformat(),
                 'temperature': round(data.get('raw_temperature', 0), 1),
                 'humidity': round(data.get('raw_humidity', 0), 1),
                 'light': round(data.get('raw_light', 0), 1),
-                'sound': data.get('raw_sound', 0),
-                'gas': data.get('raw_gas', 0),
+                'sound': raw_sound,
+                'sound_dba': data.get('sound_dba', 0) or getDBA(raw_sound) if raw_sound else 0,
+                'gas': raw_gas,
+                'gas_ppm': data.get('gas_ppm', 0) or mq135_getPPM(raw_gas) if raw_gas else 0,
                 'environmental_score': round(data.get('environmental_score', 0), 1),
                 'occupancy': data.get('occupancy', 0),
                 'happy': int(data.get('happy', 0)),
@@ -820,40 +838,29 @@ def get_iot_history():
 
 @app.route('/api/students', methods=['GET'])
 def get_students():
-    """Get all students"""
-    students = [
-        {
-            'id': i,
-            'name': f'Student {i}',
-            'rollNumber': f'SCR{2024000 + i}',
-            'engagement': random.randint(65, 90),
-            'status': 'present' if i <= 28 else 'absent'
-        }
-        for i in range(1, 33)
-    ]
-    return jsonify(students), 200
+    """Get detected students from CV system"""
+    # Return real detection data - students are dynamically detected via CV
+    students_detected = classroom_data['current_stats'].get('studentsDetected', 0)
+    avg_engagement = classroom_data['current_stats'].get('avgEngagement', 0)
+    
+    # Return student detection summary (individual tracking not implemented yet)
+    return jsonify({
+        'detected_count': students_detected,
+        'avg_engagement': avg_engagement,
+        'message': 'Individual student tracking requires face enrollment feature',
+        'timestamp': datetime.now().isoformat()
+    }), 200
 
 
 @app.route('/api/students/<int:student_id>', methods=['GET'])
 def get_student(student_id):
-    """Get a specific student's details"""
-    student = {
-        'id': student_id,
-        'name': f'Student {student_id}',
-        'rollNumber': f'SCR{2024000 + student_id}',
-        'email': f'student{student_id}@smartclassroom.edu',
-        'engagement': random.randint(65, 90),
-        'status': 'present',
-        'joinedDate': '2024-01-15',
-        'performanceHistory': [
-            {
-                'week': f'Week {i}',
-                'engagement': random.randint(60, 95)
-            }
-            for i in range(1, 9)
-        ]
-    }
-    return jsonify(student), 200
+    """Get a specific student's details (requires enrollment feature)"""
+    # Individual student tracking not implemented - return info message
+    return jsonify({
+        'message': 'Individual student tracking requires face enrollment feature',
+        'student_id': student_id,
+        'status': 'not_enrolled'
+    }), 200
 
 
 # =========================
@@ -1509,6 +1516,8 @@ def get_forecast_prediction():
     Get environmental forecasting using Gradient Boosting model
     Uses recent IoT sensor data to predict next values
     """
+    from camera_system.iot_sensor import iot_sensor
+    
     if not models_loaded:
         return jsonify({
             'success': False,
@@ -1529,13 +1538,24 @@ def get_forecast_prediction():
             return jsonify({
                 'success': False,
                 'error': 'Insufficient data for prediction (need at least 20 readings)',
-                'message': 'Please start IoT logging and wait for data collection'
+                'message': 'Please start IoT logging and wait for data collection',
+                'data_points': len(recent_data)
             }), 200
         
         # Convert to DataFrame
         df = pd.DataFrame(recent_data)
         
-        # Define features
+        # Ensure required columns exist
+        required_cols = ['temperature', 'humidity', 'gas', 'light', 'sound', 
+                        'occupancy', 'high_engagement', 'low_engagement', 'hour', 'minute']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            return jsonify({
+                'success': False,
+                'error': f'Missing required columns: {missing_cols}'
+            }), 200
+        
+        # Define features (must match training)
         forecast_features = ['temperature', 'humidity', 'gas', 'light', 'sound']
         complementing_features = ['occupancy', 'high_engagement', 'low_engagement']
         
@@ -1545,7 +1565,22 @@ def get_forecast_prediction():
         if len(df_engineered) == 0:
             return jsonify({
                 'success': False,
-                'error': 'Feature engineering failed - insufficient data'
+                'error': 'Feature engineering failed - insufficient data after rolling window processing',
+                'raw_data_points': len(df)
+            }), 200
+        
+        # Add time features to engineered dataframe
+        df_engineered['hour'] = df['hour'].iloc[-len(df_engineered):].values
+        df_engineered['minute'] = df['minute'].iloc[-len(df_engineered):].values
+        
+        # Check if all required feature columns exist
+        missing_features = [col for col in feature_columns if col not in df_engineered.columns]
+        if missing_features:
+            print(f"[ML] Warning: Missing features: {missing_features[:10]}...")  # Log first 10
+            return jsonify({
+                'success': False,
+                'error': f'Feature engineering produced missing columns ({len(missing_features)} missing)',
+                'sample_missing': missing_features[:5]
             }), 200
         
         # Get latest feature row
@@ -1669,6 +1704,8 @@ def get_forecast_prediction():
 @app.route('/api/prediction/status', methods=['GET'])
 def get_prediction_status():
     """Get prediction system status"""
+    from camera_system.iot_sensor import iot_sensor
+    
     return jsonify({
         'models_loaded': models_loaded,
         'iot_enabled': iot_enabled,
@@ -1684,6 +1721,8 @@ def check_alerts():
     Check for alert conditions based on predictions and IoT data
     Returns alerts that should be displayed to the user
     """
+    from camera_system.iot_sensor import iot_sensor
+    
     alerts = []
     
     try:
@@ -1717,6 +1756,19 @@ def check_alerts():
                 'success': True,
                 'alerts': [],
                 'message': 'Feature engineering failed'
+            }), 200
+        
+        # Add time features
+        df_engineered['hour'] = df['hour'].iloc[-len(df_engineered):].values
+        df_engineered['minute'] = df['minute'].iloc[-len(df_engineered):].values
+        
+        # Check feature columns exist
+        missing_features = [col for col in feature_columns if col not in df_engineered.columns]
+        if missing_features:
+            return jsonify({
+                'success': True,
+                'alerts': [],
+                'message': 'Feature mismatch for prediction'
             }), 200
         
         X_current = df_engineered[feature_columns].iloc[-1:].values

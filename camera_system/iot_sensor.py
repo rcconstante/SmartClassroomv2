@@ -19,6 +19,62 @@ from datetime import datetime
 import queue
 import sqlite3
 import os
+import numpy as np
+
+
+# =========================
+# Sensor Conversion Constants (from conversion.py)
+# =========================
+
+# MQ135 Gas Sensor Constants
+MQ135_RL = 10.0   # Load resistor in kΩ
+MQ135_R0 = 9.83   # Calibrated R0 (adjust based on your sensor calibration)
+
+def mq135_getPPM(rawADC: float) -> float:
+    """
+    Convert raw MQ135 ADC value to CO2/Gas PPM
+    
+    Args:
+        rawADC: Raw ADC value from ESP32 (0-4095)
+    
+    Returns:
+        Estimated CO2/Gas concentration in PPM
+    """
+    if rawADC <= 0:
+        return 0.0
+    
+    Vadc = rawADC * (3.3 / 4095.0)
+    if Vadc <= 0:
+        return 0.0
+    
+    Rs = (3.3 - Vadc) * MQ135_RL / Vadc
+    ratio = Rs / MQ135_R0
+    ppm = 116.6020682 * np.power(ratio, -2.769034857)
+    return round(ppm, 2)
+
+
+def getDBA(soundRaw: float) -> float:
+    """
+    Convert raw sound sensor ADC value to dBA (decibels A-weighted)
+    
+    Args:
+        soundRaw: Raw ADC value from ESP32 (0-4095)
+    
+    Returns:
+        Sound level in dBA
+    """
+    if soundRaw <= 0:
+        return 0.0
+    
+    centered = soundRaw - 2048  # ESP32 midpoint
+    voltage = np.sqrt(centered**2) * (3.3 / 4095.0)
+    
+    # Avoid log of zero
+    if voltage <= 0:
+        return 0.0
+    
+    dBA = 20.0 * np.log10(voltage / 0.00631)
+    return round(dBA, 1)
 
 
 class IoTSensorReader:
@@ -63,6 +119,9 @@ class IoTSensorReader:
             'raw_light': None,
             'raw_sound': None,
             'raw_gas': None,
+            # Converted sensor values
+            'sound_dba': None,      # Sound in dBA
+            'gas_ppm': None,        # Gas/CO2 in PPM
             'occupancy': 0,
             'happy': 0,
             'surprise': 0,
@@ -375,6 +434,12 @@ class IoTSensorReader:
                         normalized = self.normalize_value(sensor_name, value)
                         self.current_data[sensor_name] = normalized
                         self.current_data['timestamp'] = datetime.now()
+                        
+                        # Apply conversions for sound and gas sensors
+                        if sensor_name == 'sound':
+                            self.current_data['sound_dba'] = getDBA(value)
+                        elif sensor_name == 'gas':
+                            self.current_data['gas_ppm'] = mq135_getPPM(value)
                         
                         # Calculate environmental score
                         env_score = self.calculate_environmental_score()

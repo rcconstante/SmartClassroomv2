@@ -149,7 +149,7 @@ function updateEnvironmentMonitor(iotData) {
     const lightBarEl = document.getElementById('envLightBar');
     if (lightEl && iotData.light_level !== undefined) {
         const light = parseFloat(iotData.light_level);
-        lightEl.textContent = light.toFixed(0);
+        lightEl.textContent = light.toFixed(0) + ' lux';
         if (lightBarEl) {
             // Scale 0-1000 to 0-100%
             const lightPercent = Math.min(100, (light / 1000) * 100);
@@ -157,29 +157,52 @@ function updateEnvironmentMonitor(iotData) {
         }
     }
     
-    // Air Quality (0-4095 range, lower is better, display raw value)
+    // Air Quality - Display converted PPM value
     const airEl = document.getElementById('envAirQuality');
     const airBarEl = document.getElementById('envAirQualityBar');
-    if (airEl && iotData.air_quality !== undefined) {
-        const airQuality = parseFloat(iotData.air_quality);
-        airEl.textContent = airQuality.toFixed(0);
-        if (airBarEl) {
-            // Invert scale: 0 = 100% bar (excellent), 4095 = 0% bar (poor)
-            const airPercent = Math.max(0, 100 - (airQuality / 4095) * 100);
-            airBarEl.style.width = airPercent + '%';
+    if (airEl) {
+        // Use converted PPM value if available, otherwise show raw
+        if (iotData.air_quality_ppm !== undefined && iotData.air_quality_ppm > 0) {
+            const ppm = parseFloat(iotData.air_quality_ppm);
+            airEl.textContent = ppm.toFixed(0) + ' ppm';
+            if (airBarEl) {
+                // Scale: 400ppm (good) to 2000ppm (poor) -> 100% to 0%
+                // Lower PPM = better air quality = higher bar
+                const airPercent = Math.max(0, Math.min(100, 100 - ((ppm - 400) / 1600) * 100));
+                airBarEl.style.width = airPercent + '%';
+            }
+        } else if (iotData.air_quality !== undefined) {
+            // Fallback to raw value if conversion not available
+            const airQuality = parseFloat(iotData.air_quality);
+            airEl.textContent = airQuality.toFixed(0);
+            if (airBarEl) {
+                const airPercent = Math.max(0, 100 - (airQuality / 4095) * 100);
+                airBarEl.style.width = airPercent + '%';
+            }
         }
     }
     
-    // Noise Level (0-4095 range for sound sensor)
+    // Noise Level - Display converted dBA value
     const noiseEl = document.getElementById('envNoise');
     const noiseBarEl = document.getElementById('envNoiseBar');
-    if (noiseEl && iotData.sound !== undefined) {
-        const noise = parseFloat(iotData.sound);
-        noiseEl.textContent = noise.toFixed(0);
-        if (noiseBarEl) {
-            // Scale 0-4095 to 0-100%
-            const noisePercent = Math.min(100, (noise / 4095) * 100);
-            noiseBarEl.style.width = noisePercent + '%';
+    if (noiseEl) {
+        // Use converted dBA value if available, otherwise show raw
+        if (iotData.sound_dba !== undefined && iotData.sound_dba > 0) {
+            const dba = parseFloat(iotData.sound_dba);
+            noiseEl.textContent = dba.toFixed(1) + ' dBA';
+            if (noiseBarEl) {
+                // Scale: 30dBA (quiet) to 90dBA (loud) -> 0% to 100%
+                const noisePercent = Math.min(100, Math.max(0, ((dba - 30) / 60) * 100));
+                noiseBarEl.style.width = noisePercent + '%';
+            }
+        } else if (iotData.sound !== undefined) {
+            // Fallback to raw value if conversion not available
+            const noise = parseFloat(iotData.sound);
+            noiseEl.textContent = noise.toFixed(0);
+            if (noiseBarEl) {
+                const noisePercent = Math.min(100, (noise / 4095) * 100);
+                noiseBarEl.style.width = noisePercent + '%';
+            }
         }
     }
 }
@@ -826,9 +849,14 @@ async function updateForecastingChart() {
             forecastingChart.data.datasets[2].data = co2Data.map(v => Math.round(v));
             
             forecastingChart.update('none');
+            
+            console.log('[Forecast] Updated chart with predictions');
+        } else {
+            // Log why prediction failed
+            console.log('[Forecast] Prediction not available:', result.error || result.message || 'Unknown reason');
         }
     } catch (error) {
-        console.error('Error updating forecasting chart:', error);
+        console.error('[Forecast] Error updating forecasting chart:', error);
     }
 }
 

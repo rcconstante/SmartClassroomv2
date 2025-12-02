@@ -1,0 +1,39 @@
+import pandas as pd
+import numpy as np
+
+# Load CSV
+file_path = "/content/Main Dataset_with_engagement.csv"
+df = pd.read_csv(file_path)
+
+# Constants for MQ135
+MQ135_RL = 10.0   # Load resistor in kΩ
+MQ135_R0 = 9.83   # Calibrated R0
+
+# Function to convert raw gas to PPM
+def mq135_getPPM(rawADC):
+    Vadc = rawADC * (3.3 / 4095.0)
+    if Vadc <= 0:
+        return 0
+    Rs = (3.3 - Vadc) * MQ135_RL / Vadc
+    ratio = Rs / MQ135_R0
+    ppm = 116.6020682 * np.power(ratio, -2.769034857)
+    return ppm
+
+# Function to convert raw sound to dBA
+def getDBA(soundRaw):
+    centered = soundRaw - 2048  # ESP32 midpoint
+    voltage = np.sqrt(centered**2) * (3.3 / 4095.0)
+    # Avoid log of zero
+    if voltage <= 0:
+        return 0
+    dBA = 20.0 * np.log10(voltage / 0.00631)
+    return dBA
+
+# Apply conversion functions
+df['Sound_dBA'] = df['sound'].apply(getDBA)
+df['MQ135_PPM'] = df['gas'].apply(mq135_getPPM)
+
+# Save new CSV
+output_path = "/content/Main_Dataset_with_analog.csv"
+df.to_csv(output_path, index=False)
+print(f"Converted CSV saved to {output_path}")
