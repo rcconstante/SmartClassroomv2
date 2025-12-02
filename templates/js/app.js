@@ -10,6 +10,51 @@ const state = {
     isDarkMode: localStorage.getItem('darkMode') === 'true'
 };
 
+// Global interval tracking for all pages
+window.pageIntervals = window.pageIntervals || [];
+
+// Global cleanup function - clears all page intervals when switching pages
+function cleanupPageIntervals() {
+    // Clear analytics intervals
+    if (window.analyticsIntervals && window.analyticsIntervals.length > 0) {
+        window.analyticsIntervals.forEach(id => clearInterval(id));
+        window.analyticsIntervals = [];
+        console.log('✓ Cleared analytics intervals');
+    }
+    
+    // Clear dashboard intervals
+    if (window.dashboardIntervals && window.dashboardIntervals.length > 0) {
+        window.dashboardIntervals.forEach(id => clearInterval(id));
+        window.dashboardIntervals = [];
+        console.log('✓ Cleared dashboard intervals');
+    }
+    
+    // Clear any other page intervals
+    if (window.pageIntervals && window.pageIntervals.length > 0) {
+        window.pageIntervals.forEach(id => clearInterval(id));
+        window.pageIntervals = [];
+        console.log('✓ Cleared page intervals');
+    }
+    
+    // Clear specific named intervals
+    if (window.iotDataInterval) {
+        clearInterval(window.iotDataInterval);
+        window.iotDataInterval = null;
+    }
+    if (window.iotStatusInterval) {
+        clearInterval(window.iotStatusInterval);
+        window.iotStatusInterval = null;
+    }
+    if (window.alertCheckInterval) {
+        clearInterval(window.alertCheckInterval);
+        window.alertCheckInterval = null;
+    }
+    if (window.cameraUpdateInterval) {
+        clearInterval(window.cameraUpdateInterval);
+        window.cameraUpdateInterval = null;
+    }
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     // Check if user is authenticated
@@ -174,6 +219,9 @@ function hasPageAccess(role, page) {
 
 // Routing function
 function routeTo(page) {
+    // Clean up all intervals from previous page before loading new one
+    cleanupPageIntervals();
+    
     const mainContent = document.getElementById('mainContent');
     const pageTitle = document.querySelector('.page-title');
     const pageSubtitle = document.querySelector('.page-subtitle');
@@ -874,8 +922,31 @@ function loadAnalytics() {
     
     lucide.createIcons();
     
+    // Clear any existing analytics intervals before initializing
+    clearAnalyticsIntervals();
+    
     // Initialize analytics
     initAnalytics();
+}
+
+// Store interval IDs for cleanup
+window.analyticsIntervals = window.analyticsIntervals || [];
+
+// Clear all analytics intervals
+function clearAnalyticsIntervals() {
+    if (window.analyticsIntervals) {
+        window.analyticsIntervals.forEach(id => clearInterval(id));
+        window.analyticsIntervals = [];
+    }
+    if (window.iotDataInterval) {
+        clearInterval(window.iotDataInterval);
+        window.iotDataInterval = null;
+    }
+    if (window.iotStatusInterval) {
+        clearInterval(window.iotStatusInterval);
+        window.iotStatusInterval = null;
+    }
+    console.log('✓ Cleared analytics intervals');
 }
 
 // Initialize Analytics
@@ -911,23 +982,20 @@ async function initAnalytics() {
         await populateIoTTable();
         
         // Start continuous IoT data refresh every 10 seconds for synchronized logging
-        if (!window.iotDataInterval) {
-            window.iotDataInterval = setInterval(async () => {
-                try {
-                    await populateIoTTable();
-                } catch (error) {
-                    console.error('Error updating IoT data:', error);
-                }
-            }, 10000);
-            console.log('✓ Started continuous IoT data refresh (10 second interval)');
-        }
-        
-        // Auto-refresh analytics every 30 seconds
-        setInterval(() => refreshAnalytics(30), 30000);
+        const iotDataId = setInterval(async () => {
+            try {
+                await populateIoTTable();
+            } catch (error) {
+                console.error('Error updating IoT data:', error);
+            }
+        }, 10000);
+        window.analyticsIntervals.push(iotDataId);
+        window.iotDataInterval = iotDataId;
+        console.log('✓ Started continuous IoT data refresh (10 second interval)');
         
         const exportBtn = document.getElementById('exportAnalyticsBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => exportAnalyticsCSV(days, true));
+            exportBtn.addEventListener('click', () => exportAnalyticsCSV(30, true));
         }
         
         // IoT Database Logging Controls
@@ -949,44 +1017,42 @@ async function initAnalytics() {
         // Check initial logging status
         await updateIoTLoggingStatus();
         
-        // Update status every 10 seconds (reduced from 5 to minimize requests)
-        if (!window.iotStatusInterval) {
-            window.iotStatusInterval = setInterval(async () => {
-                await updateIoTLoggingStatus();
-            }, 10000);
-        }
+        // Update status every 10 seconds
+        const iotStatusId = setInterval(async () => {
+            await updateIoTLoggingStatus();
+        }, 10000);
+        window.analyticsIntervals.push(iotStatusId);
+        window.iotStatusInterval = iotStatusId;
         
-        // Auto-refresh every 15 seconds
-        setInterval(async () => {
-            const summaryResponse = await fetch('/api/analytics/summary');
-            const summary = await summaryResponse.json();
-            updateAnalyticsStats(summary);
-            
-            // Refresh emotion chart with averaged history data
-            const emotionHistoryResponse = await fetch('/api/emotions/history');
-            const emotionHistory = await emotionHistoryResponse.json();
-            if (emotionHistory.success && emotionHistory.average_emotions) {
-                // Update the emotion chart with new averages
-                const ctx = document.getElementById('analyticsEmotionChart');
-                if (ctx && ctx.chart) {
-                    const chart = Chart.getChart(ctx);
-                    if (chart) {
-                        const data = [
-                            emotionHistory.average_emotions.Happy || 0,
-                            emotionHistory.average_emotions.Surprise || 0,
-                            emotionHistory.average_emotions.Neutral || 0,
-                            emotionHistory.average_emotions.Sad || 0,
-                            emotionHistory.average_emotions.Angry || 0,
-                            emotionHistory.average_emotions.Disgust || 0,
-                            emotionHistory.average_emotions.Fear || 0
-                        ];
-                        const hasData = data.some(val => val > 0);
-                        chart.data.datasets[0].data = hasData ? data : [1, 1, 1, 1, 1, 1, 1];
-                        chart.update();
-                    }
+        // Auto-refresh stats every 30 seconds (not charts - just stats)
+        const statsRefreshId = setInterval(async () => {
+            try {
+                const summaryResponse = await fetch('/api/analytics/summary');
+                const summary = await summaryResponse.json();
+                updateAnalyticsStats(summary);
+                
+                // Update emotion chart data without re-creating it
+                const emotionHistoryResponse = await fetch('/api/emotions/history');
+                const emotionHistory = await emotionHistoryResponse.json();
+                if (emotionHistory.success && emotionHistory.average_emotions && analyticsEmotionChartInstance) {
+                    const data = [
+                        emotionHistory.average_emotions.Happy || 0,
+                        emotionHistory.average_emotions.Surprise || 0,
+                        emotionHistory.average_emotions.Neutral || 0,
+                        emotionHistory.average_emotions.Sad || 0,
+                        emotionHistory.average_emotions.Angry || 0,
+                        emotionHistory.average_emotions.Disgust || 0,
+                        emotionHistory.average_emotions.Fear || 0
+                    ];
+                    const hasData = data.some(val => val > 0);
+                    analyticsEmotionChartInstance.data.datasets[0].data = hasData ? data : [1, 1, 1, 1, 1, 1, 1];
+                    analyticsEmotionChartInstance.update('none');
                 }
+            } catch (error) {
+                console.error('Error refreshing analytics stats:', error);
             }
-        }, 15000);
+        }, 30000);
+        window.analyticsIntervals.push(statsRefreshId);
         
     } catch (error) {
         console.error('Error initializing analytics:', error);
@@ -1556,7 +1622,20 @@ async function exportIoTDataCSV() {
 }
 
 function updateAnalyticsCharts(data) {
-    loadAnalytics();
+    // Update engagement chart data without re-creating
+    if (analyticsEngagementChartInstance && data && data.length > 0) {
+        analyticsEngagementChartInstance.data.labels = data.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        analyticsEngagementChartInstance.data.datasets[0].data = data.map(d => d.highlyEngaged || 0);
+        analyticsEngagementChartInstance.data.datasets[1].data = data.map(d => d.disengaged || 0);
+        analyticsEngagementChartInstance.update('none');
+    }
+    
+    // Update presence chart data without re-creating
+    if (analyticsPresenceChartInstance && data && data.length > 0) {
+        analyticsPresenceChartInstance.data.labels = data.map(d => d.time || new Date(d.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        analyticsPresenceChartInstance.data.datasets[0].data = data.map(d => d.presenceCount || 0);
+        analyticsPresenceChartInstance.update('none');
+    }
 }
 
 function loadHelp() {

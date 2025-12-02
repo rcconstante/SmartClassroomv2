@@ -41,12 +41,8 @@ async function fetchDashboardStats() {
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);
     }
-    
-    // Fetch IoT sensor data for Environment Monitor
-    fetchIoTEnvironmentData();
-    
-    // Fetch environment prediction data
-    fetchEnvironmentPrediction();
+    // Note: IoT and prediction data are fetched by their own intervals
+    // Do NOT call them here to avoid duplicate requests
 }
 
 // Fetch environment prediction from ML model
@@ -433,30 +429,44 @@ function loadDashboard() {
     // Initialize fullscreen button
     initFullscreenButton();
 
-    // Fetch initial dashboard data
+    // Clear any existing dashboard intervals first to prevent duplicates
+    if (window.dashboardIntervals && window.dashboardIntervals.length > 0) {
+        window.dashboardIntervals.forEach(id => clearInterval(id));
+        console.log('✓ Cleared existing dashboard intervals');
+    }
+    window.dashboardIntervals = [];
+
+    // Fetch initial dashboard data (one-time calls)
     fetchDashboardStats();
     fetchIoTEnvironmentData();
+    fetchEnvironmentPrediction(); // Initial prediction fetch
     
-    // Update stats every 5 seconds for real-time sync
-    setInterval(fetchDashboardStats, 5000);
+    // Update stats every 10 seconds (reduced from 5s to prevent overload)
+    const statsIntervalId = setInterval(fetchDashboardStats, 10000);
+    window.dashboardIntervals.push(statsIntervalId);
     
-    // Update IoT environment data every 10 seconds
-    setInterval(fetchIoTEnvironmentData, 10000);
+    // Update IoT environment data every 15 seconds
+    const iotIntervalId = setInterval(fetchIoTEnvironmentData, 15000);
+    window.dashboardIntervals.push(iotIntervalId);
     
-    // Update environment prediction every 15 seconds (less frequent due to computation)
-    setInterval(fetchEnvironmentPrediction, 15000);
+    // Update environment prediction every 30 seconds (heavy computation)
+    const predictionIntervalId = setInterval(fetchEnvironmentPrediction, 30000);
+    window.dashboardIntervals.push(predictionIntervalId);
     
-    // Update emotion data every 2 seconds when camera is active
-    setInterval(() => {
+    // Update emotion data every 3 seconds when camera is active
+    const emotionIntervalId = setInterval(() => {
         // Check both local variable and localStorage for camera state
         const isCameraActive = cameraActive || localStorage.getItem('cameraActive') === 'true';
         if (isCameraActive) {
             fetchDashboardEmotionData();
         }
-    }, 2000);
+    }, 3000);
+    window.dashboardIntervals.push(emotionIntervalId);
     
     // Check for alerts every 1 minute without duplicating
     startAlertChecker();
+    
+    console.log('✓ Dashboard initialized with', window.dashboardIntervals.length, 'intervals');
 }
 
 // =========================
@@ -479,6 +489,12 @@ function startAlertChecker() {
     alertCheckInterval = setInterval(() => {
         checkAndShowAlerts();
     }, 60000);  // 60000ms = 1 minute
+    
+    // Track this interval globally
+    window.alertCheckInterval = alertCheckInterval;
+    if (window.dashboardIntervals) {
+        window.dashboardIntervals.push(alertCheckInterval);
+    }
     
     console.log('[Alerts] Started alert checker (1 minute interval)');
 }
@@ -630,7 +646,10 @@ function initEngagementChart() {
     });
     
     // Start updating with real-time emotion data
-    setInterval(updateEngagementLevelChart, 2000);
+    const engagementUpdateId = setInterval(updateEngagementLevelChart, 2000);
+    if (window.dashboardIntervals) {
+        window.dashboardIntervals.push(engagementUpdateId);
+    }
 }
 
 // Update engagement level chart with emotion-based data
@@ -797,7 +816,10 @@ function initForecastingChart() {
     });
     
     // Start updating forecast data every 15 seconds
-    setInterval(updateForecastingChart, 15000);
+    const forecastUpdateId = setInterval(updateForecastingChart, 15000);
+    if (window.dashboardIntervals) {
+        window.dashboardIntervals.push(forecastUpdateId);
+    }
     // Initial update
     updateForecastingChart();
 }
@@ -1120,6 +1142,10 @@ async function startCamera() {
         // Start updating detection stats more frequently
         if (cameraUpdateInterval) clearInterval(cameraUpdateInterval);
         cameraUpdateInterval = setInterval(fetchDashboardStats, 2000); // Every 2 seconds when camera is active
+        window.cameraUpdateInterval = cameraUpdateInterval;
+        if (window.dashboardIntervals) {
+            window.dashboardIntervals.push(cameraUpdateInterval);
+        }
         
     } catch (error) {
         // Show error state

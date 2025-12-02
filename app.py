@@ -105,37 +105,41 @@ def create_time_series_features(df, forecast_features, complementing_features, w
     Returns:
         DataFrame with engineered features
     """
-    df_features = df.copy()
+    # Build all features as a dictionary first, then concat at once to avoid fragmentation
+    feature_dict = {}
     
     # Create features for ENVIRONMENTAL variables only
     for feature in forecast_features:
         # Rolling statistics
         for window in windows:
-            df_features[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
-            df_features[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
-            df_features[f'{feature}_roll_min_{window}'] = df[feature].rolling(window=window, min_periods=1).min()
-            df_features[f'{feature}_roll_max_{window}'] = df[feature].rolling(window=window, min_periods=1).max()
+            feature_dict[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
+            feature_dict[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
+            feature_dict[f'{feature}_roll_min_{window}'] = df[feature].rolling(window=window, min_periods=1).min()
+            feature_dict[f'{feature}_roll_max_{window}'] = df[feature].rolling(window=window, min_periods=1).max()
         
         # Lagged features
         for lag in [1, 2, 3, 5, 10]:
-            df_features[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
+            feature_dict[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
         
         # Trend features
-        df_features[f'{feature}_trend_5'] = df[feature].diff(5)
-        df_features[f'{feature}_trend_10'] = df[feature].diff(10)
+        feature_dict[f'{feature}_trend_5'] = df[feature].diff(5)
+        feature_dict[f'{feature}_trend_10'] = df[feature].diff(10)
     
     # ADD COMPLEMENTING FEATURES with their own rolling stats
     for feature in complementing_features:
         # Rolling statistics for complementing features
         for window in [5, 10, 15]:
-            df_features[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
-            df_features[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
+            feature_dict[f'{feature}_roll_mean_{window}'] = df[feature].rolling(window=window, min_periods=1).mean()
+            feature_dict[f'{feature}_roll_std_{window}'] = df[feature].rolling(window=window, min_periods=1).std().fillna(0)
         
         # Lagged features
         for lag in [1, 2, 5]:
-            df_features[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
+            feature_dict[f'{feature}_lag_{lag}'] = df[feature].shift(lag)
     
-    # Additional interaction features
+    # Concatenate all features at once to avoid DataFrame fragmentation
+    df_features = pd.concat([df, pd.DataFrame(feature_dict, index=df.index)], axis=1)
+    
+    # Additional interaction features (add to existing DataFrame)
     df_features['engagement_ratio'] = df_features['high_engagement'] / (df_features['low_engagement'] + 1)
     df_features['occupancy_engagement'] = df_features['occupancy'] * df_features['high_engagement']
     
