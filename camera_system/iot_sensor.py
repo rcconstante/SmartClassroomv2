@@ -928,7 +928,7 @@ def initialize_iot(port: str = None, baudrate: int = 9600) -> bool:
         baudrate: Serial baud rate (default 115200)
     
     Returns:
-        True if initialized successfully, False if not (system will use simulated data)
+        True if initialized successfully, False if IoT sensors are unavailable
     """
     global iot_sensor
     

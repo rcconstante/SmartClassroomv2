@@ -1,7 +1,7 @@
 // Auth module
 const auth = {
     login: async (email, password) => {
-        // Simulate API call
+        // Demo credentials for testing - use backend API in production
         if (email === 'professor@university.edu' && password === 'demo123') {
             const user = {
                 id: '1',

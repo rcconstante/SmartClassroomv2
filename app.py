@@ -32,7 +32,10 @@ app = Flask(__name__,
 CORS(app)
 
 # Configuration
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this in production
+# IMPORTANT: Set SECRET_KEY via environment variable in production
+# Example: export SECRET_KEY='your-secure-random-key-here'
+import secrets
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['JSON_SORT_KEYS'] = False
 
 # =========================
