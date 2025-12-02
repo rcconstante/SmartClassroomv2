@@ -15,6 +15,10 @@ opencv-python==4.12.0.88
 pillow==12.0.0
 numpy==2.2.6
 
+# Machine Learning models (Gradient Boosting, Random Forest)
+scikit-learn==1.6.1
+pandas>=2.0.0
+
 # IoT and serial communication
 pyserial==3.5
 
